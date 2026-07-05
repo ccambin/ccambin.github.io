@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>체스 게임 - 정성빈</title>
+  <style>
+    body {font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #f0f4ff, #e0e7ff); color: #2c3e50; padding: 2rem;}
+    a {color: #3498db; text-decoration: none;}
+    a:hover {text-decoration: underline;}
+    .container {max-width: 520px; margin: auto; background: rgba(255,255,255,0.85); padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;}
+    #board {display: inline-grid; grid-template-columns: repeat(8, 48px); grid-template-rows: repeat(8, 48px); margin: 1.5rem auto; border: 3px solid #2c3e50; border-radius: 6px; overflow: hidden;}
+    .square {width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 2rem; cursor: pointer; user-select: none;}
+    .light {background: #f0d9b5;}
+    .dark {background: #b58863;}
+    .selected {outline: 3px solid #f1c40f; outline-offset: -3px;}
+    .movable::after {content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%; background: rgba(46, 204, 113, 0.7);}
+    .movable {position: relative;}
+    #status {font-size: 1.1rem; font-weight: bold; margin: 1rem 0; min-height: 1.5rem;}
+    button {background: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-size: 1rem; margin-top: 0.5rem;}
+    button:hover {background: #2980b9;}
+    .back {display: inline-block; margin-top: 1.5rem;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>체스 게임 (쉬움 모드)</h1>
+    <p>당신은 흰색 말입니다. 말을 클릭한 뒤, 이동할 칸을 클릭하세요.<br>컴퓨터는 항상 아무 수나 무작위로 두기 때문에 누구나 쉽게 이길 수 있어요!</p>
+    <div id="board"></div>
+    <div id="status">당신의 차례입니다 (흰색)</div>
+    <button id="resetBtn">다시 시작</button>
+    <div class="back"><a href="index.html">← 홈으로 돌아가기</a></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+  <script>
+    var game = new Chess();
+    var boardEl = document.getElementById('board');
+    var statusEl = document.getElementById('status');
+    var selectedSquare = null;
+
+    var PIECE_UNICODE = {
+      wK: '♔', wQ: '♕', wR: '♖', wB: '♗', wN: '♘', wP: '♙',
+      bK: '♚', bQ: '♛', bR: '♜', bB: '♝', bN: '♞', bP: '♟'
+    };
+
+    var files = ['a','b','c','d','e','f','g','h'];
+    var ranks = ['8','7','6','5','4','3','2','1'];
+
+    function renderBoard() {
+      boardEl.innerHTML = '';
+      var legalTargets = [];
+      if (selectedSquare) {
+        game.moves({square: selectedSquare, verbose: true}).forEach(function(m) {
+          legalTargets.push(m.to);
+        });
+      }
+      ranks.forEach(function(rank) {
+        files.forEach(function(file) {
+          var square = file + rank;
+          var piece = game.get(square);
+          var sq = document.createElement('div');
+          sq.className = 'square ' + (((files.indexOf(file) + ranks.indexOf(rank)) % 2 === 0) ? 'light' : 'dark');
+          if (square === selectedSquare) sq.className += ' selected';
+          if (legalTargets.indexOf(square) !== -1) sq.className += ' movable';
+          if (piece) sq.textContent = PIECE_UNICODE[piece.color + piece.type.toUpperCase()];
+          sq.dataset.square = square;
+          sq.addEventListener('click', onSquareClick);
+          boardEl.appendChild(sq);
+        });
+      });
+    }
+
+    function updateStatus() {
+      var text = '';
+      if (game.in_checkmate()) {
+        text = game.turn() === 'w' ? '체크메이트! 컴퓨터가 이겼어요.' : '체크메이트! 당신이 이겼어요! 🎉';
+      } else if (game.in_draw()) {
+        text = '무승부입니다.';
+      } else {
+        text = game.turn() === 'w' ? '당신의 차례입니다 (흰색)' : '컴퓨터가 생각 중...';
+        if (game.in_check()) text += ' (체크!)';
+      }
+      statusEl.textContent = text;
+    }
+
+    function onSquareClick(e) {
+      if (game.game_over() || game.turn() !== 'w') return;
+      var square = e.currentTarget.dataset.square;
+
+      if (selectedSquare) {
+        var move = game.move({from: selectedSquare, to: square, promotion: 'q'});
+        selectedSquare = null;
+        if (move) {
+          renderBoard();
+          updateStatus();
+          window.setTimeout(makeComputerMove, 500);
+          return;
+        }
+      }
+
+      var piece = game.get(square);
+      if (piece && piece.color === 'w') {
+        selectedSquare = square;
+      } else {
+        selectedSquare = null;
+      }
+      renderBoard();
+    }
+
+    function makeComputerMove() {
+      if (game.game_over()) return;
+      var moves = game.moves();
+      var randomMove = moves[Math.floor(Math.random() * moves.length)];
+      game.move(randomMove);
+      renderBoard();
+      updateStatus();
+    }
+
+    document.getElementById('resetBtn').addEventListener('click', function() {
+      game.reset();
+      selectedSquare = null;
+      renderBoard();
+      updateStatus();
+    });
+
+    renderBoard();
+    updateStatus();
+  </script>
+</body>
+</html>
