@@ -19,13 +19,24 @@
     #status {font-size: 1.1rem; font-weight: bold; margin: 1rem 0; min-height: 1.5rem;}
     button {background: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-size: 1rem; margin-top: 0.5rem;}
     button:hover {background: #2980b9;}
+    .difficulty {margin: 0.5rem 0;}
+    .difficulty button {background: #ecf0f1; color: #2c3e50; margin: 0 0.2rem;}
+    .difficulty button:hover {background: #d5dbdb;}
+    .difficulty button.active {background: #3498db; color: white;}
+    #difficultyHint {font-size: 0.9rem; color: #7f8c8d; margin-top: 0.4rem;}
     .back {display: inline-block; margin-top: 1.5rem;}
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>체스 게임 (쉬움 모드)</h1>
-    <p>당신은 흰색 말입니다. 말을 클릭한 뒤, 이동할 칸을 클릭하세요.<br>컴퓨터는 항상 아무 수나 무작위로 두기 때문에 누구나 쉽게 이길 수 있어요!</p>
+    <h1>체스 게임</h1>
+    <p>당신은 흰색 말입니다. 말을 클릭한 뒤, 이동할 칸을 클릭하세요.</p>
+    <div class="difficulty">
+      <button id="easyBtn" class="active">😊 쉬움</button>
+      <button id="mediumBtn">🙂 보통</button>
+      <button id="hardBtn">🤔 어려움</button>
+      <div id="difficultyHint">컴퓨터가 아무 수나 둬요. 누구나 이길 수 있어요!</div>
+    </div>
     <div id="board"></div>
     <div id="status">당신의 차례입니다 (흰색)</div>
     <button id="resetBtn">다시 시작</button>
@@ -38,10 +49,19 @@
     var boardEl = document.getElementById('board');
     var statusEl = document.getElementById('status');
     var selectedSquare = null;
+    var difficulty = 'easy';
 
     var PIECE_UNICODE = {
       wK: '♔', wQ: '♕', wR: '♖', wB: '♗', wN: '♘', wP: '♙',
       bK: '♚', bQ: '♛', bR: '♜', bB: '♝', bN: '♞', bP: '♟'
+    };
+
+    var PIECE_VALUES = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
+
+    var DIFFICULTY_HINTS = {
+      easy: '컴퓨터가 아무 수나 둬요. 누구나 이길 수 있어요!',
+      medium: '컴퓨터가 말을 잡을 줄 알아요. 조심하세요!',
+      hard: '컴퓨터가 몇 수 앞을 내다봐요. 진짜 대결!'
     };
 
     var files = ['a','b','c','d','e','f','g','h'];
@@ -108,14 +128,117 @@
       renderBoard();
     }
 
+    // 흑(컴퓨터) 기준 점수: 클수록 컴퓨터에게 유리
+    function evaluateBoard() {
+      var score = 0;
+      var rows = game.board();
+      for (var i = 0; i < 8; i++) {
+        for (var j = 0; j < 8; j++) {
+          var p = rows[i][j];
+          if (p) score += (p.color === 'b' ? 1 : -1) * PIECE_VALUES[p.type];
+        }
+      }
+      return score;
+    }
+
+    function pickRandom(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function easyMove() {
+      return pickRandom(game.moves());
+    }
+
+    // 한 수만 내다보고 가장 이득이 큰 수를 고름 (동점이면 무작위)
+    function mediumMove() {
+      var moves = game.moves();
+      var bestScore = -Infinity;
+      var bestMoves = [];
+      moves.forEach(function(m) {
+        game.move(m);
+        var score = game.in_checkmate() ? 10000 : evaluateBoard();
+        game.undo();
+        if (score > bestScore) {
+          bestScore = score;
+          bestMoves = [m];
+        } else if (score === bestScore) {
+          bestMoves.push(m);
+        }
+      });
+      return pickRandom(bestMoves);
+    }
+
+    function minimax(depth, alpha, beta, isMaximizing) {
+      var moves = game.moves();
+      if (moves.length === 0) {
+        if (game.in_check()) return isMaximizing ? -10000 - depth : 10000 + depth;
+        return 0;
+      }
+      if (depth === 0) return evaluateBoard();
+      var best;
+      if (isMaximizing) {
+        best = -Infinity;
+        for (var i = 0; i < moves.length; i++) {
+          game.move(moves[i]);
+          best = Math.max(best, minimax(depth - 1, alpha, beta, false));
+          game.undo();
+          alpha = Math.max(alpha, best);
+          if (beta <= alpha) break;
+        }
+      } else {
+        best = Infinity;
+        for (var j = 0; j < moves.length; j++) {
+          game.move(moves[j]);
+          best = Math.min(best, minimax(depth - 1, alpha, beta, true));
+          game.undo();
+          beta = Math.min(beta, best);
+          if (beta <= alpha) break;
+        }
+      }
+      return best;
+    }
+
+    function hardMove() {
+      var moves = game.moves();
+      var bestScore = -Infinity;
+      var bestMoves = [];
+      moves.forEach(function(m) {
+        game.move(m);
+        var score = minimax(2, -Infinity, Infinity, false);
+        game.undo();
+        if (score > bestScore) {
+          bestScore = score;
+          bestMoves = [m];
+        } else if (score === bestScore) {
+          bestMoves.push(m);
+        }
+      });
+      return pickRandom(bestMoves);
+    }
+
     function makeComputerMove() {
       if (game.game_over()) return;
-      var moves = game.moves();
-      var randomMove = moves[Math.floor(Math.random() * moves.length)];
-      game.move(randomMove);
+      var move;
+      if (difficulty === 'hard') move = hardMove();
+      else if (difficulty === 'medium') move = mediumMove();
+      else move = easyMove();
+      game.move(move);
       renderBoard();
       updateStatus();
     }
+
+    function setDifficulty(level, btn) {
+      difficulty = level;
+      document.querySelectorAll('.difficulty button').forEach(function(b) {
+        b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      document.getElementById('difficultyHint').textContent = DIFFICULTY_HINTS[level];
+    }
+
+    document.getElementById('easyBtn').addEventListener('click', function() { setDifficulty('easy', this); });
+    document.getElementById('mediumBtn').addEventListener('click', function() { setDifficulty('medium', this); });
+    document.getElementById('hardBtn').addEventListener('click', function() { setDifficulty('hard', this); });
 
     document.getElementById('resetBtn').addEventListener('click', function() {
       game.reset();
