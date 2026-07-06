@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ info.patent_number }} - 특허 PDF 다운로더</title>
+  <style>
+    body {font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #f0f4ff, #e0e7ff); color: #2c3e50; padding: 2rem;}
+    a {color: #3498db; text-decoration: none;}
+    a:hover {text-decoration: underline;}
+    .container {max-width: 560px; margin: auto; background: rgba(255,255,255,0.85); padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);}
+    h1 {font-size: 1.3rem; margin-bottom: 0.2rem;}
+    .patent-number {color: #3498db; font-weight: bold; font-size: 1rem;}
+    .meta {color: #7f8c8d; font-size: 0.9rem; margin: 0.6rem 0;}
+    .abstract {background: rgba(0,0,0,0.03); padding: 1rem; border-radius: 8px; font-size: 0.95rem; line-height: 1.6; margin-top: 1rem;}
+    .actions {margin-top: 1.5rem; text-align: center;}
+    button, .btn {background: #3498db; color: white; border: none; padding: 0.7rem 1.4rem; border-radius: 8px; cursor: pointer; font-size: 1rem;}
+    button:hover, .btn:hover {background: #2980b9;}
+    .back {display: inline-block; margin-top: 1.5rem;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="patent-number">{{ info.patent_number }}</div>
+    <h1>{{ info.title }}</h1>
+    <div class="meta">공개일: {{ info.pub_date or '정보 없음' }} · <a href="{{ info.page_url }}" target="_blank">Google Patents에서 보기 ↗</a></div>
+    {% if info.abstract %}
+    <div class="abstract">{{ info.abstract }}</div>
+    {% endif %}
+    <div class="actions">
+      <a class="btn" href="/download?pdf_url={{ info.pdf_url | urlencode }}&patent_number={{ info.patent_number }}">📄 PDF 다운로드</a>
+    </div>
+    <div class="back"><a href="/">← 다시 검색하기</a></div>
+  </div>
+</body>
+</html>

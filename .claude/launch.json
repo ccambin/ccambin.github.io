@@ -6,6 +6,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8080"],
       "port": 8080
+    },
+    {
+      "name": "patent-downloader",
+      "runtimeExecutable": "C:/Users/Seongbin/AppData/Local/Programs/Python/Python312/python.exe",
+      "runtimeArgs": ["patent-downloader/app.py"],
+      "port": 5050
     }
   ]
 }

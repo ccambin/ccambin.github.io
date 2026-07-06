@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>'{{ keyword }}' 검색결과 - 특허 PDF 다운로더</title>
+  <style>
+    body {font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #f0f4ff, #e0e7ff); color: #2c3e50; padding: 2rem;}
+    a {color: #3498db; text-decoration: none;}
+    a:hover {text-decoration: underline;}
+    .container {max-width: 640px; margin: auto; background: rgba(255,255,255,0.85); padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);}
+    h1 {font-size: 1.3rem; margin-bottom: 0.2rem;}
+    .summary {color: #7f8c8d; font-size: 0.9rem; margin-bottom: 1.2rem;}
+    .card {background: rgba(0,0,0,0.03); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;}
+    .card .number {color: #3498db; font-weight: bold; font-size: 0.9rem;}
+    .card h3 {margin: 0.2rem 0; font-size: 1.05rem;}
+    .card .meta {color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.5rem;}
+    .card .snippet {font-size: 0.9rem; line-height: 1.5; margin-bottom: 0.6rem;}
+    .card .btn {display: inline-block; background: #3498db; color: white; padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.9rem;}
+    .card .btn:hover {background: #2980b9; text-decoration: none;}
+    .empty {color: #7f8c8d; text-align: center; padding: 2rem 0;}
+    .back {display: inline-block; margin-top: 1rem;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>'{{ keyword }}' 검색결과</h1>
+    <div class="summary">전체 {{ total }}건 중 상위 {{ results|length }}건 표시</div>
+
+    {% if results %}
+      {% for r in results %}
+      <div class="card">
+        <div class="number">{{ r.publication_number }}</div>
+        <h3>{{ r.title }}</h3>
+        <div class="meta">
+          {% if r.assignee %}출원인: {{ r.assignee }}{% endif %}
+          {% if r.inventor %} · 발명자: {{ r.inventor }}{% endif %}
+          {% if r.pub_date %} · 공개일: {{ r.pub_date }}{% endif %}
+        </div>
+        {% if r.snippet %}<div class="snippet">{{ r.snippet }}</div>{% endif %}
+        {% if r.publication_number %}
+        <a class="btn" href="/patent/{{ r.publication_number }}">자세히 보기 / PDF 다운로드</a>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">검색 결과가 없습니다.</div>
+    {% endif %}
+
+    <div class="back"><a href="/">← 다시 검색하기</a></div>
+  </div>
+</body>
+</html>
