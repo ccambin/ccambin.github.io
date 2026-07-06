@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir -p \"C:/Test/code/.claude\")"
+      "Bash(mkdir -p \"C:/Test/code/.claude\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git fetch *)",
+      "Bash(git rebase *)",
+      "Bash(git stash *)",
+      "Bash(python3 -c \"import PIL; print\\('PIL available'\\)\")",
+      "Bash(python -c \"import PIL; print\\('PIL available'\\)\")",
+      "Bash(python -c \"import PIL; print\\(PIL.__version__\\)\")",
+      "Bash(\"/c/Users/Seongbin/AppData/Local/Programs/Python/Python312/python.exe\" --version)",
+      "Bash(\"/c/Users/Seongbin/AppData/Local/Programs/Python/Python312/python.exe\" -c \"import PIL; print\\(PIL.__version__\\)\")",
+      "Bash(/c/Users/Seongbin/AppData/Local/Programs/Python/Python312/python.exe -c ' *)"
     ]
   }
 }
