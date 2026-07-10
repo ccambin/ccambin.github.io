@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>벽돌깨기</title>
+  <style>
+    html, body {height: 100%; margin: 0;}
+    body {font-family: 'Inter', 'Malgun Gothic', sans-serif; background: linear-gradient(135deg, #f0f4ff, #e0e7ff); display: flex; align-items: center; justify-content: center; overflow: hidden;}
+    #stage {position: relative; width: min(420px, 100vw); height: 100dvh; background: #1b1b2b; overflow: hidden; touch-action: none;}
+    @media (min-width: 440px) {
+      #stage {height: min(92dvh, 780px); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);}
+    }
+    canvas {display: block; width: 100%; height: 100%;}
+
+    #hud {position: absolute; top: 0; left: 0; right: 0; padding: 8px; pointer-events: none; display: none;}
+    #progressBar {height: 4px; background: rgba(255,255,255,0.18); border-radius: 2px; margin-bottom: 8px;}
+    #progressFill {width: 0%; height: 100%; background: #9FE1CB; border-radius: 2px;}
+    .chips {display: flex; justify-content: space-between;}
+    .chip {background: rgba(0,0,0,0.55); font-size: 12px; padding: 3px 9px; border-radius: 10px; color: #F1EFE8;}
+    #chipScore {color: #9FE1CB;}
+    #chipBalls {color: #F0997B;}
+
+    .overlay {position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; background: rgba(0,0,0,0.28);}
+    .overlay.hidden {display: none;}
+    .panel {background: rgba(0,0,0,0.72); border-radius: 14px; padding: 20px 18px; width: 100%; max-width: 300px; text-align: center; color: #F1EFE8;}
+    .panel h1 {font-size: 1.25rem; margin: 0 0 4px;}
+    .panel .sub {font-size: 0.8rem; color: #B4B2A9; margin: 0 0 14px;}
+    .pills {display: flex; gap: 5px; justify-content: center; margin-bottom: 14px;}
+    .pill {font-size: 0.8rem; padding: 6px 12px; border-radius: 12px; border: 1px solid #5F5E5A; background: transparent; color: #B4B2A9; cursor: pointer; font-family: inherit;}
+    .pill.active {background: #378ADD; border-color: #378ADD; color: #E6F1FB;}
+    .primary {display: block; width: 100%; background: #5DCAA5; color: #04342C; border: none; border-radius: 9px; padding: 11px; font-size: 1rem; font-weight: bold; cursor: pointer; font-family: inherit; margin-bottom: 8px;}
+    .primary:active {background: #9FE1CB;}
+    .ghost {background: transparent; border: none; color: #B4B2A9; font-size: 0.85rem; cursor: pointer; font-family: inherit; padding: 6px;}
+    .rank {margin-top: 10px; text-align: left;}
+    .rank.hidden {display: none;}
+    .rank-title {font-size: 0.75rem; color: #B4B2A9; margin: 0 0 4px;}
+    .rank-row {font-size: 0.78rem; color: #D3D1C7; display: flex; justify-content: space-between; padding: 4px 0; border-top: 1px solid #444441;}
+    .rank-row.me {color: #9FE1CB; font-weight: bold;}
+    .rank-empty {font-size: 0.78rem; color: #7f8c8d; padding: 6px 0; border-top: 1px solid #444441;}
+    .stats {font-size: 0.9rem; color: #D3D1C7; margin: 0 0 12px;}
+    .stats .score {color: #9FE1CB; font-weight: bold;}
+    .stats .time {color: #B5D4F4; font-weight: bold;}
+    .name-row {display: flex; gap: 6px; margin-bottom: 6px;}
+    .name-row input {flex: 1; min-width: 0; background: transparent; border: 1px solid #5F5E5A; border-radius: 8px; padding: 8px 10px; color: #F1EFE8; font-size: 0.9rem; font-family: inherit;}
+    .name-row button {background: #5DCAA5; color: #04342C; border: none; border-radius: 8px; padding: 8px 14px; font-size: 0.9rem; font-weight: bold; cursor: pointer; font-family: inherit;}
+    .name-row button:disabled {background: #5F5E5A; color: #B4B2A9;}
+    .home {display: inline-block; margin-top: 10px; color: #B4B2A9; font-size: 0.8rem; text-decoration: none;}
+    .home:hover {color: #F1EFE8;}
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game"></canvas>
+
+    <div id="hud">
+      <div id="progressBar"><div id="progressFill"></div></div>
+      <div class="chips">
+        <span class="chip" id="chipScore">0점</span>
+        <span class="chip" id="chipBalls">볼 3</span>
+        <span class="chip" id="chipTime">0.0초</span>
+      </div>
+    </div>
+
+    <div class="overlay" id="startOverlay">
+      <div class="panel">
+        <h1>🧱 벽돌깨기</h1>
+        <p class="sub">패들을 움직여 공으로 벽돌을 모두 깨세요!</p>
+        <div class="pills" id="diffPills">
+          <button class="pill" data-diff="easy">쉬움</button>
+          <button class="pill active" data-diff="normal">보통</button>
+          <button class="pill" data-diff="hard">어려움</button>
+        </div>
+        <button class="primary" id="startBtn">게임 시작</button>
+        <button class="ghost" id="rankBtn">🏆 랭킹 보기</button>
+        <div class="rank hidden" id="startRank"></div>
+        <a class="home" href="index.html">← 홈으로</a>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="finishOverlay">
+      <div class="panel">
+        <h1 id="finishTitle">🏁 클리어!</h1>
+        <p class="stats">점수 <span class="score" id="finalScore"></span> · 기록 <span class="time" id="finalTime"></span></p>
+        <div class="name-row">
+          <input type="text" id="nameInput" maxlength="10" placeholder="이름 입력">
+          <button id="saveBtn">저장</button>
+        </div>
+        <div class="rank" id="finishRank"></div>
+        <button class="primary" id="retryBtn" style="margin-top:12px;">다시 하기</button>
+        <a class="home" href="index.html">← 홈으로</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var DIFFS = {
+      easy:   {label: '쉬움',   rows: 4, speed: 300, paddle: 0.34, lives: 4},
+      normal: {label: '보통',   rows: 5, speed: 380, paddle: 0.26, lives: 3},
+      hard:   {label: '어려움', rows: 6, speed: 470, paddle: 0.20, lives: 3}
+    };
+    var COLS = 7;
+    var ROW_COLORS = ['#E24B4A', '#EF9F27', '#F1C40F', '#97C459', '#378ADD', '#9b59b6'];
+
+    var G = {
+      state: 'start', diff: 'normal',
+      score: 0, balls: 0, elapsed: 0,
+      bricks: [], totalBricks: 0, brokenBricks: 0,
+      paddleX: 0, paddleW: 0,
+      ball: {x: 0, y: 0, vx: 0, vy: 0, r: 7, stuck: true},
+      speed: 380, saved: false, particles: []
+    };
+    window.G = G;
+
+    var stage = document.getElementById('stage');
+    var canvas = document.getElementById('game');
+    var ctx = canvas.getContext('2d');
+    var W = 0, H = 0;
+
+    var PADDLE_H = 12;
+    function paddleTop() { return H - 46; }
+    var TOP_MARGIN = 46;   // HUD 아래
+    var SIDE_PAD = 10;
+    var BRICK_GAP = 5;
+
+    function resize() {
+      var dpr = window.devicePixelRatio || 1;
+      W = stage.clientWidth; H = stage.clientHeight;
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', function() { resize(); });
+    resize();
+
+    // ---------- 랭킹 (점수 내림차순, 동점이면 시간 오름차순) ----------
+    function loadRank(diff) {
+      try { return JSON.parse(localStorage.getItem('breakoutRank_' + diff)) || []; }
+      catch (e) { return []; }
+    }
+    function saveRank(diff, entry) {
+      var list = loadRank(diff);
+      list.push(entry);
+      list.sort(function(a, b) { return b.score - a.score || a.time - b.time; });
+      list = list.slice(0, 10);
+      localStorage.setItem('breakoutRank_' + diff, JSON.stringify(list));
+      return list;
+    }
+    function renderRank(el, diff, me) {
+      var list = loadRank(diff);
+      var html = '<p class="rank-title">🏆 랭킹 (' + DIFFS[diff].label + ') — 높은 점수 순</p>';
+      if (list.length === 0) {
+        html += '<div class="rank-empty">아직 기록이 없어요. 첫 주자가 되어보세요!</div>';
+      } else {
+        list.slice(0, 5).forEach(function(r, i) {
+          var isMe = me && r.name === me.name && r.score === me.score && r.time === me.time;
+          html += '<div class="rank-row' + (isMe ? ' me' : '') + '"><span>' + (i + 1) + '위 ' + r.name +
+                  '</span><span>' + r.score + '점 · ' + r.time.toFixed(1) + '초</span></div>';
+        });
+      }
+      el.innerHTML = html;
+    }
+
+    // ---------- 상태 전환 ----------
+    var hud = document.getElementById('hud');
+    var startOverlay = document.getElementById('startOverlay');
+    var finishOverlay = document.getElementById('finishOverlay');
+
+    function setState(s) {
+      G.state = s;
+      hud.style.display = s === 'playing' ? 'block' : 'none';
+      startOverlay.classList.toggle('hidden', s !== 'start');
+      finishOverlay.classList.toggle('hidden', s !== 'finished');
+    }
+
+    function buildBricks() {
+      var cfg = DIFFS[G.diff];
+      G.bricks = [];
+      var usableW = W - SIDE_PAD * 2 - BRICK_GAP * (COLS - 1);
+      var bw = usableW / COLS;
+      var bh = 22;
+      for (var r = 0; r < cfg.rows; r++) {
+        for (var c = 0; c < COLS; c++) {
+          G.bricks.push({
+            x: SIDE_PAD + c * (bw + BRICK_GAP),
+            y: TOP_MARGIN + 14 + r * (bh + BRICK_GAP),
+            w: bw, h: bh,
+            color: ROW_COLORS[r % ROW_COLORS.length],
+            points: (cfg.rows - r) * 10,
+            alive: true
+          });
+        }
+      }
+      G.totalBricks = G.bricks.length;
+      G.brokenBricks = 0;
+    }
+
+    function resetBall() {
+      G.ball.stuck = true;
+      G.ball.r = 7;
+      G.ball.x = G.paddleX;
+      G.ball.y = paddleTop() - G.ball.r - 1;
+      G.ball.vx = 0;
+      G.ball.vy = 0;
+    }
+
+    function launchBall() {
+      if (!G.ball.stuck) return;
+      G.ball.stuck = false;
+      var angle = (-Math.PI / 2) + (Math.random() * 0.5 - 0.25); // 위쪽 ± 약간
+      G.ball.vx = Math.cos(angle) * G.speed;
+      G.ball.vy = Math.sin(angle) * G.speed;
+    }
+
+    function startGame() {
+      var cfg = DIFFS[G.diff];
+      G.score = 0;
+      G.balls = cfg.lives;
+      G.elapsed = 0;
+      G.speed = cfg.speed;
+      G.paddleW = W * cfg.paddle;
+      G.paddleX = W / 2;
+      G.particles = [];
+      G.saved = false;
+      buildBricks();
+      resetBall();
+      setState('playing');
+    }
+    window.startGame = startGame;
+
+    function finishGame(win) {
+      setState('finished');
+      document.getElementById('finishTitle').textContent = win ? '🏆 클리어!' : '💥 게임 오버';
+      document.getElementById('finalScore').textContent = G.score + '점';
+      document.getElementById('finalTime').textContent = G.elapsed.toFixed(1) + '초';
+      var input = document.getElementById('nameInput');
+      input.value = localStorage.getItem('breakoutName') || '';
+      input.disabled = false;
+      document.getElementById('saveBtn').disabled = false;
+      renderRank(document.getElementById('finishRank'), G.diff);
+    }
+    window.finishGame = finishGame;
+
+    function spawnParticles(x, y, color) {
+      for (var i = 0; i < 6; i++) {
+        G.particles.push({
+          x: x, y: y,
+          vx: (Math.random() - 0.5) * 160,
+          vy: (Math.random() - 0.5) * 160,
+          life: 0.4, color: color
+        });
+      }
+    }
+
+    // ---------- 물리 ----------
+    function reflectOffPaddle() {
+      var b = G.ball;
+      var half = G.paddleW / 2;
+      if (b.vy > 0 && b.y + b.r >= paddleTop() && b.y - b.r <= paddleTop() + PADDLE_H &&
+          b.x >= G.paddleX - half - b.r && b.x <= G.paddleX + half + b.r) {
+        var offset = (b.x - G.paddleX) / half;
+        offset = Math.max(-1, Math.min(1, offset));
+        var angle = (-Math.PI / 2) + offset * (Math.PI / 3); // 최대 ±60도
+        b.vx = Math.cos(angle) * G.speed;
+        b.vy = Math.sin(angle) * G.speed;
+        b.y = paddleTop() - b.r - 1;
+      }
+    }
+
+    function reflectOffBricks() {
+      var b = G.ball;
+      for (var i = 0; i < G.bricks.length; i++) {
+        var br = G.bricks[i];
+        if (!br.alive) continue;
+        var cx = Math.max(br.x, Math.min(b.x, br.x + br.w));
+        var cy = Math.max(br.y, Math.min(b.y, br.y + br.h));
+        var dx = b.x - cx, dy = b.y - cy;
+        if (dx * dx + dy * dy <= b.r * b.r) {
+          br.alive = false;
+          G.brokenBricks++;
+          G.score += br.points;
+          spawnParticles(br.x + br.w / 2, br.y + br.h / 2, br.color);
+          // 반사 축: 침투가 작은 축으로 튕김
+          var overlapX = Math.min(b.x + b.r, br.x + br.w) - Math.max(b.x - b.r, br.x);
+          var overlapY = Math.min(b.y + b.r, br.y + br.h) - Math.max(b.y - b.r, br.y);
+          if (overlapX < overlapY) b.vx = -b.vx; else b.vy = -b.vy;
+          return; // 프레임당 하나만
+        }
+      }
+    }
+
+    function update(dt) {
+      if (G.state !== 'playing') return;
+      G.elapsed += dt;
+      var b = G.ball;
+
+      if (b.stuck) {
+        b.x = G.paddleX;
+        b.y = paddleTop() - b.r - 1;
+      } else {
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+
+        if (b.x - b.r < 3) { b.x = 3 + b.r; b.vx = Math.abs(b.vx); }
+        if (b.x + b.r > W - 3) { b.x = W - 3 - b.r; b.vx = -Math.abs(b.vx); }
+        if (b.y - b.r < 0) { b.y = b.r; b.vy = Math.abs(b.vy); }
+
+        reflectOffBricks();
+        reflectOffPaddle();
+
+        if (b.y - b.r > H) { // 바닥으로 떨어짐
+          G.balls--;
+          if (G.balls <= 0) { finishGame(false); return; }
+          resetBall();
+        }
+      }
+
+      if (G.brokenBricks >= G.totalBricks) { finishGame(true); return; }
+
+      for (var i = G.particles.length - 1; i >= 0; i--) {
+        var p = G.particles[i];
+        p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
+        if (p.life <= 0) G.particles.splice(i, 1);
+      }
+    }
+
+    // ---------- 그리기 ----------
+    function roundRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function draw() {
+      ctx.fillStyle = '#1b1b2b';
+      ctx.fillRect(0, 0, W, H);
+
+      // 벽돌
+      G.bricks.forEach(function(br) {
+        if (!br.alive) return;
+        ctx.fillStyle = br.color;
+        roundRect(br.x, br.y, br.w, br.h, 4);
+        ctx.fill();
+      });
+
+      // 파티클
+      G.particles.forEach(function(p) {
+        ctx.globalAlpha = Math.max(0, p.life / 0.4);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+        ctx.globalAlpha = 1;
+      });
+
+      if (G.state === 'playing' || G.state === 'finished') {
+        // 패들
+        ctx.fillStyle = '#E6F1FB';
+        roundRect(G.paddleX - G.paddleW / 2, paddleTop(), G.paddleW, PADDLE_H, 6);
+        ctx.fill();
+
+        // 공
+        ctx.fillStyle = '#9FE1CB';
+        ctx.beginPath();
+        ctx.arc(G.ball.x, G.ball.y, G.ball.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 발사 대기 안내
+        if (G.state === 'playing' && G.ball.stuck) {
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.font = '13px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('터치 또는 스페이스로 발사', W / 2, paddleTop() - 24);
+        }
+      }
+    }
+
+    // ---------- HUD ----------
+    var chipScore = document.getElementById('chipScore');
+    var chipBalls = document.getElementById('chipBalls');
+    var chipTime = document.getElementById('chipTime');
+    var progressFill = document.getElementById('progressFill');
+
+    function updateHud() {
+      if (G.state !== 'playing') return;
+      chipScore.textContent = G.score + '점';
+      chipBalls.textContent = '볼 ' + G.balls;
+      chipTime.textContent = G.elapsed.toFixed(1) + '초';
+      progressFill.style.width = (G.totalBricks ? G.brokenBricks / G.totalBricks * 100 : 0) + '%';
+    }
+
+    // ---------- 루프 ----------
+    var lastT = performance.now();
+    function loop(t) {
+      var dt = Math.min(0.033, (t - lastT) / 1000);
+      lastT = t;
+      update(dt);
+      draw();
+      updateHud();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    // ---------- 입력 ----------
+    function movePaddleTo(clientX) {
+      if (G.state !== 'playing') return;
+      var rect = stage.getBoundingClientRect();
+      var x = clientX - rect.left;
+      var half = G.paddleW / 2;
+      G.paddleX = Math.max(half + 3, Math.min(W - half - 3, x));
+    }
+    window.movePaddleTo = movePaddleTo;
+
+    stage.addEventListener('pointerdown', function(e) {
+      if (G.state !== 'playing') return;
+      e.preventDefault();
+      movePaddleTo(e.clientX);
+      launchBall();
+    });
+    stage.addEventListener('pointermove', function(e) {
+      if (G.state !== 'playing') return;
+      movePaddleTo(e.clientX);
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (G.state !== 'playing') return;
+      var step = W * 0.06;
+      if (e.key === 'ArrowLeft') { G.paddleX = Math.max(G.paddleW / 2 + 3, G.paddleX - step); e.preventDefault(); }
+      else if (e.key === 'ArrowRight') { G.paddleX = Math.min(W - G.paddleW / 2 - 3, G.paddleX + step); e.preventDefault(); }
+      else if (e.key === ' ' || e.key === 'ArrowUp') { launchBall(); e.preventDefault(); }
+    });
+
+    // ---------- UI 이벤트 ----------
+    document.getElementById('diffPills').addEventListener('click', function(e) {
+      var btn = e.target.closest('.pill');
+      if (!btn) return;
+      G.diff = btn.dataset.diff;
+      document.querySelectorAll('#diffPills .pill').forEach(function(p) {
+        p.classList.toggle('active', p === btn);
+      });
+      var panel = document.getElementById('startRank');
+      if (!panel.classList.contains('hidden')) renderRank(panel, G.diff);
+    });
+
+    document.getElementById('startBtn').addEventListener('click', startGame);
+    document.getElementById('retryBtn').addEventListener('click', function() { setState('start'); });
+
+    document.getElementById('rankBtn').addEventListener('click', function() {
+      var panel = document.getElementById('startRank');
+      panel.classList.toggle('hidden');
+      if (!panel.classList.contains('hidden')) renderRank(panel, G.diff);
+    });
+
+    document.getElementById('saveBtn').addEventListener('click', function() {
+      if (G.saved) return;
+      var name = document.getElementById('nameInput').value.trim() || '무명';
+      localStorage.setItem('breakoutName', name);
+      var entry = {name: name, score: G.score, time: Math.round(G.elapsed * 10) / 10};
+      saveRank(G.diff, entry);
+      G.saved = true;
+      document.getElementById('nameInput').disabled = true;
+      document.getElementById('saveBtn').disabled = true;
+      renderRank(document.getElementById('finishRank'), G.diff, entry);
+    });
+
+    setState('start');
+  </script>
+</body>
+</html>
