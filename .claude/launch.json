@@ -12,6 +12,12 @@
       "runtimeExecutable": "C:/Users/Seongbin/AppData/Local/Programs/Python/Python312/python.exe",
       "runtimeArgs": ["patent-downloader/app.py"],
       "port": 5050
+    },
+    {
+      "name": "chinese-mail-vocab",
+      "runtimeExecutable": "C:/Users/Seongbin/AppData/Local/Programs/Python/Python312/python.exe",
+      "runtimeArgs": ["chinese-mail-vocab/app.py", "--no-browser"],
+      "port": 5860
     }
   ]
 }
