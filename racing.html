@@ -11,7 +11,7 @@
     @media (min-width: 440px) {
       #stage {height: min(92dvh, 780px); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);}
     }
-    canvas {display: block;}
+    canvas {display: block; width: 100%; height: 100%;}
 
     #hud {position: absolute; top: 0; left: 0; right: 0; padding: 8px; pointer-events: none; display: none;}
     #progressBar {height: 4px; background: rgba(255,255,255,0.18); border-radius: 2px; margin-bottom: 8px;}
@@ -26,7 +26,7 @@
     #btnL {left: 14px;}
     #btnR {right: 14px;}
 
-    .overlay {position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box;}
+    .overlay {position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; background: rgba(0,0,0,0.28);}
     .overlay.hidden {display: none;}
     .panel {background: rgba(0,0,0,0.72); border-radius: 14px; padding: 20px 18px; width: 100%; max-width: 300px; text-align: center; color: #F1EFE8;}
     .panel h1 {font-size: 1.25rem; margin: 0 0 4px;}
@@ -114,12 +114,23 @@
       state: 'start', diff: 'normal',
       playerLane: 2, playerX: 0,
       collisions: 0, speed: 0, distance: 0, target: 0,
-      elapsed: 0, invUntil: 0,
-      obstacles: [], rivals: [],
-      finishY: null, dash: 0, spawnTimer: 0, lastSpawnLane: -1,
-      saved: false
+      elapsed: 0, invUntil: 0, shieldUntil: 0,
+      obstacles: [], rivals: [], items: [], floats: [],
+      finishY: null, dash: 0, spawnTimer: 0, itemTimer: 0, lastSpawnLane: -1,
+      carStyle: 0, saved: false
     };
     window.G = G;
+
+    var CAR_STYLES = [
+      {body: '#1D9E75', glass: '#9FE1CB'},
+      {body: '#378ADD', glass: '#B5D4F4'},
+      {body: '#9b59b6', glass: '#d7bde2'},
+      {body: '#E24B4A', glass: '#F7C1C1'},
+      {body: '#EF9F27', glass: '#FAEEDA'}
+    ];
+    var ITEM_EMOJI = {shield: '⭐', boost: '⚡', transform: '🌈'};
+    var ITEM_TYPES = ['shield', 'boost', 'transform'];
+    var ITEM_MS = 5500;
 
     var stage = document.getElementById('stage');
     var canvas = document.getElementById('game');
@@ -129,8 +140,7 @@
     function resize() {
       var dpr = window.devicePixelRatio || 1;
       W = stage.clientWidth; H = stage.clientHeight;
-      canvas.width = W * dpr; canvas.height = H * dpr;
-      canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       laneW = W / LANES;
     }
@@ -179,6 +189,9 @@
 
     function setState(s) {
       G.state = s;
+      if (s === 'start') { // 대기 화면엔 깨끗한 도로만 (잔여물 겹침 방지)
+        G.obstacles = []; G.rivals = []; G.items = []; G.floats = []; G.finishY = null;
+      }
       hud.style.display = s === 'playing' ? 'block' : 'none';
       btnL.style.display = btnR.style.display = s === 'playing' ? 'flex' : 'none';
       startOverlay.classList.toggle('hidden', s !== 'start');
@@ -196,10 +209,15 @@
       G.elapsed = 0;
       G.invUntil = 0;
       G.obstacles = [];
+      G.items = [];
+      G.floats = [];
       G.finishY = null;
       G.dash = 0;
       G.spawnTimer = 0;
+      G.itemTimer = 0;
       G.lastSpawnLane = -1;
+      G.shieldUntil = 0;
+      G.carStyle = 0;
       G.saved = false;
       G.rivals = [];
       for (var i = 0; i < cfg.rivals; i++) {
@@ -249,6 +267,45 @@
       return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
     }
 
+    function spawnItem() {
+      var lane = Math.floor(Math.random() * LANES);
+      for (var i = 0; i < G.obstacles.length; i++) {
+        if (G.obstacles[i].lane === lane && G.obstacles[i].y < 180) return;
+      }
+      G.items.push({lane: lane, y: -40, type: ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)]});
+    }
+
+    function addFloat(text) {
+      G.floats.push({text: text, x: G.playerX, y: playerY() - 16, alpha: 1});
+    }
+
+    function applyItem(type) {
+      var cfg = DIFFS[G.diff];
+      if (type === 'shield') {
+        G.shieldUntil = G.elapsed + 3;
+        addFloat('⭐ 무적 3초!');
+      } else if (type === 'boost') {
+        G.speed = Math.min(cfg.max + 40, G.speed + 40);
+        addFloat('⚡ 스피드 업!');
+      } else {
+        G.carStyle = (G.carStyle + 1 + Math.floor(Math.random() * (CAR_STYLES.length - 1))) % CAR_STYLES.length;
+        addFloat('🌈 변신!');
+      }
+    }
+
+    function checkItemPickup() {
+      var cw = carW(), ch = carH();
+      var px = G.playerX - cw / 2, py = playerY();
+      var s = laneW * 0.42;
+      for (var i = G.items.length - 1; i >= 0; i--) {
+        var it = G.items[i];
+        if (boxHit(px, py, cw, ch, laneCenter(it.lane) - s / 2, it.y, s, s)) {
+          applyItem(it.type);
+          G.items.splice(i, 1);
+        }
+      }
+    }
+
     function handleCollision() {
       var cfg = DIFFS[G.diff];
       G.collisions++;
@@ -260,13 +317,15 @@
       var cw = carW(), ch = carH();
       var px = G.playerX - cw / 2, py = playerY();
       var ob = laneW * 0.4;
+      var shield = G.elapsed < G.shieldUntil;
 
       for (var i = G.obstacles.length - 1; i >= 0; i--) {
         var o = G.obstacles[i];
         var ox = laneCenter(o.lane) - ob / 2;
         if (boxHit(px, py, cw, ch, ox, o.y, ob, ob)) {
           G.obstacles.splice(i, 1);
-          handleCollision();
+          if (shield) addFloat('💥 격파!');
+          else handleCollision();
           return;
         }
       }
@@ -275,7 +334,7 @@
         var rx = laneCenter(r.lane) - cw / 2;
         if (boxHit(px, py, cw, ch, rx, r.y, cw, ch)) {
           r.y -= 160;
-          handleCollision();
+          if (!shield) handleCollision();
           return;
         }
       }
@@ -286,6 +345,7 @@
       var cfg = DIFFS[G.diff];
       G.elapsed += dt;
       if (G.speed < cfg.max) G.speed = Math.min(cfg.max, G.speed + cfg.accel * dt);
+      else if (G.speed > cfg.max) G.speed = Math.max(cfg.max, G.speed - 6 * dt); // 부스트 후 서서히 원속도로
       G.distance += G.speed * dt;
       var road = G.speed * PX * dt;
       G.dash += road;
@@ -298,6 +358,22 @@
       for (var i = G.obstacles.length - 1; i >= 0; i--) {
         G.obstacles[i].y += road;
         if (G.obstacles[i].y > H + 60) G.obstacles.splice(i, 1);
+      }
+
+      if (G.finishY === null) {
+        G.itemTimer += dt * 1000;
+        if (G.itemTimer >= ITEM_MS) { G.itemTimer = 0; spawnItem(); }
+      }
+      for (var k = G.items.length - 1; k >= 0; k--) {
+        G.items[k].y += road;
+        if (G.items[k].y > H + 60) G.items.splice(k, 1);
+      }
+      checkItemPickup();
+
+      for (var f = G.floats.length - 1; f >= 0; f--) {
+        G.floats[f].y -= 34 * dt;
+        G.floats[f].alpha -= 0.8 * dt;
+        if (G.floats[f].alpha <= 0) G.floats.splice(f, 1);
       }
 
       G.rivals.forEach(function(r) {
@@ -362,11 +438,10 @@
       }
       ctx.setLineDash([]);
 
-      // 도로 가장자리
-      ctx.strokeStyle = '#F1EFE8';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(2, H); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(W - 2, 0); ctx.lineTo(W - 2, H); ctx.stroke();
+      // 도로 가장자리 (픽셀 경계에 맞춘 사각형으로 이음새 방지)
+      ctx.fillStyle = '#F1EFE8';
+      ctx.fillRect(0, 0, 3, H);
+      ctx.fillRect(W - 3, 0, 3, H);
 
       // 결승선 (체크무늬)
       if (G.finishY !== null) {
@@ -389,18 +464,54 @@
         ctx.fillRect(laneCenter(o.lane) - ob / 2 + 3, o.y + ob * 0.4, ob - 6, ob * 0.2);
       });
 
+      // 아이템
+      var isz = laneW * 0.42;
+      G.items.forEach(function(it) {
+        var cx = laneCenter(it.lane);
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.beginPath();
+        ctx.arc(cx, it.y + isz / 2, isz / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = Math.round(isz * 0.6) + 'px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(ITEM_EMOJI[it.type], cx, it.y + isz / 2 + 1);
+      });
+
       // 라이벌
       G.rivals.forEach(function(r) {
         if (r.y > -carH() - 10 && r.y < H + 10) drawCar(laneCenter(r.lane), r.y, r.color, r.glass);
       });
 
-      // 플레이어 (무적 시간엔 깜빡임)
+      // 플레이어 (충돌 무적 시간엔 깜빡임, 변신 아이템은 색상 변경)
       if (G.state === 'playing' || G.state === 'finished') {
         var blink = G.elapsed < G.invUntil && Math.floor(G.elapsed * 10) % 2 === 0;
         ctx.globalAlpha = blink ? 0.3 : 1;
-        drawCar(G.playerX, playerY(), '#1D9E75', '#9FE1CB');
+        var st = CAR_STYLES[G.carStyle];
+        drawCar(G.playerX, playerY(), st.body, st.glass);
         ctx.globalAlpha = 1;
+
+        // 별 아이템 무적: 빤짝이는 링
+        if (G.state === 'playing' && G.elapsed < G.shieldUntil) {
+          var ringColors = ['#F1C40F', '#5DCAA5', '#F0997B', '#B5D4F4'];
+          ctx.strokeStyle = ringColors[Math.floor(G.elapsed * 8) % 4];
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(G.playerX, playerY() + carH() / 2, carH() * 0.75 + Math.sin(G.elapsed * 10) * 3, 0, Math.PI * 2);
+          ctx.stroke();
+        }
       }
+
+      // 아이템 획득 문구
+      G.floats.forEach(function(f) {
+        ctx.globalAlpha = Math.max(0, f.alpha);
+        ctx.font = 'bold 15px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText(f.text, f.x, f.y);
+        ctx.globalAlpha = 1;
+      });
     }
 
     // ---------- HUD ----------
