@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>자동차 레이싱</title>
+  <style>
+    html, body {height: 100%; margin: 0;}
+    body {font-family: 'Inter', 'Malgun Gothic', sans-serif; background: linear-gradient(135deg, #f0f4ff, #e0e7ff); display: flex; align-items: center; justify-content: center; overflow: hidden;}
+    #stage {position: relative; width: min(420px, 100vw); height: 100dvh; background: #2C2C2A; overflow: hidden; touch-action: none;}
+    @media (min-width: 440px) {
+      #stage {height: min(92dvh, 780px); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);}
+    }
+    canvas {display: block;}
+
+    #hud {position: absolute; top: 0; left: 0; right: 0; padding: 8px; pointer-events: none; display: none;}
+    #progressBar {height: 4px; background: rgba(255,255,255,0.18); border-radius: 2px; margin-bottom: 8px;}
+    #progressFill {width: 0%; height: 100%; background: #9FE1CB; border-radius: 2px;}
+    .chips {display: flex; justify-content: space-between;}
+    .chip {background: rgba(0,0,0,0.55); font-size: 12px; padding: 3px 9px; border-radius: 10px; color: #F1EFE8;}
+    #chipHits {color: #F0997B;}
+    #chipSpeed {color: #9FE1CB;}
+
+    .ctrl {position: absolute; bottom: 14px; width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,0.16); border: none; color: #F1EFE8; font-size: 26px; display: none; align-items: center; justify-content: center; cursor: pointer; user-select: none; -webkit-user-select: none;}
+    .ctrl:active {background: rgba(255,255,255,0.32);}
+    #btnL {left: 14px;}
+    #btnR {right: 14px;}
+
+    .overlay {position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box;}
+    .overlay.hidden {display: none;}
+    .panel {background: rgba(0,0,0,0.72); border-radius: 14px; padding: 20px 18px; width: 100%; max-width: 300px; text-align: center; color: #F1EFE8;}
+    .panel h1 {font-size: 1.25rem; margin: 0 0 4px;}
+    .panel .sub {font-size: 0.8rem; color: #B4B2A9; margin: 0 0 14px;}
+    .pills {display: flex; gap: 5px; justify-content: center; margin-bottom: 14px;}
+    .pill {font-size: 0.8rem; padding: 6px 12px; border-radius: 12px; border: 1px solid #5F5E5A; background: transparent; color: #B4B2A9; cursor: pointer; font-family: inherit;}
+    .pill.active {background: #1D9E75; border-color: #1D9E75; color: #E1F5EE;}
+    .primary {display: block; width: 100%; background: #5DCAA5; color: #04342C; border: none; border-radius: 9px; padding: 11px; font-size: 1rem; font-weight: bold; cursor: pointer; font-family: inherit; margin-bottom: 8px;}
+    .primary:active {background: #9FE1CB;}
+    .ghost {background: transparent; border: none; color: #B4B2A9; font-size: 0.85rem; cursor: pointer; font-family: inherit; padding: 6px;}
+    .rank {margin-top: 10px; text-align: left;}
+    .rank.hidden {display: none;}
+    .rank-title {font-size: 0.75rem; color: #B4B2A9; margin: 0 0 4px;}
+    .rank-row {font-size: 0.78rem; color: #D3D1C7; display: flex; justify-content: space-between; padding: 4px 0; border-top: 1px solid #444441;}
+    .rank-row.me {color: #9FE1CB; font-weight: bold;}
+    .rank-empty {font-size: 0.78rem; color: #7f8c8d; padding: 6px 0; border-top: 1px solid #444441;}
+    .stats {font-size: 0.9rem; color: #D3D1C7; margin: 0 0 12px;}
+    .stats .hits {color: #F0997B; font-weight: bold;}
+    .stats .time {color: #9FE1CB; font-weight: bold;}
+    .name-row {display: flex; gap: 6px; margin-bottom: 6px;}
+    .name-row input {flex: 1; min-width: 0; background: transparent; border: 1px solid #5F5E5A; border-radius: 8px; padding: 8px 10px; color: #F1EFE8; font-size: 0.9rem; font-family: inherit;}
+    .name-row button {background: #5DCAA5; color: #04342C; border: none; border-radius: 8px; padding: 8px 14px; font-size: 0.9rem; font-weight: bold; cursor: pointer; font-family: inherit;}
+    .name-row button:disabled {background: #5F5E5A; color: #B4B2A9;}
+    .home {display: inline-block; margin-top: 10px; color: #B4B2A9; font-size: 0.8rem; text-decoration: none;}
+    .home:hover {color: #F1EFE8;}
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game"></canvas>
+
+    <div id="hud">
+      <div id="progressBar"><div id="progressFill"></div></div>
+      <div class="chips">
+        <span class="chip" id="chipHits">충돌 0</span>
+        <span class="chip" id="chipSpeed">0km/h</span>
+        <span class="chip" id="chipTime">0.0초</span>
+      </div>
+    </div>
+
+    <button class="ctrl" id="btnL">◀</button>
+    <button class="ctrl" id="btnR">▶</button>
+
+    <div class="overlay" id="startOverlay">
+      <div class="panel">
+        <h1>🚗 자동차 레이싱</h1>
+        <p class="sub">장애물을 피해 결승선까지 달리세요!</p>
+        <div class="pills" id="diffPills">
+          <button class="pill" data-diff="easy">쉬움</button>
+          <button class="pill active" data-diff="normal">보통</button>
+          <button class="pill" data-diff="hard">어려움</button>
+        </div>
+        <button class="primary" id="startBtn">게임 시작</button>
+        <button class="ghost" id="rankBtn">🏆 랭킹 보기</button>
+        <div class="rank hidden" id="startRank"></div>
+        <a class="home" href="index.html">← 홈으로</a>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="finishOverlay">
+      <div class="panel">
+        <h1>🏁 완주!</h1>
+        <p class="stats">충돌 <span class="hits" id="finalHits"></span> · 기록 <span class="time" id="finalTime"></span></p>
+        <div class="name-row">
+          <input type="text" id="nameInput" maxlength="10" placeholder="이름 입력">
+          <button id="saveBtn">저장</button>
+        </div>
+        <div class="rank" id="finishRank"></div>
+        <button class="primary" id="retryBtn" style="margin-top:12px;">다시 하기</button>
+        <a class="home" href="index.html">← 홈으로</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var DIFFS = {
+      easy:   {label: '쉬움',   base: 100, max: 160, accel: 6,  spawnMs: 950, rivals: 2, rivalSpeed: 120},
+      normal: {label: '보통',   base: 120, max: 200, accel: 8,  spawnMs: 700, rivals: 3, rivalSpeed: 150},
+      hard:   {label: '어려움', base: 140, max: 240, accel: 10, spawnMs: 500, rivals: 4, rivalSpeed: 180}
+    };
+    var LANES = 5;
+    var PX = 2.6; // km/h -> px/s 변환 계수
+
+    var G = {
+      state: 'start', diff: 'normal',
+      playerLane: 2, playerX: 0,
+      collisions: 0, speed: 0, distance: 0, target: 0,
+      elapsed: 0, invUntil: 0,
+      obstacles: [], rivals: [],
+      finishY: null, dash: 0, spawnTimer: 0, lastSpawnLane: -1,
+      saved: false
+    };
+    window.G = G;
+
+    var stage = document.getElementById('stage');
+    var canvas = document.getElementById('game');
+    var ctx = canvas.getContext('2d');
+    var W = 0, H = 0, laneW = 0;
+
+    function resize() {
+      var dpr = window.devicePixelRatio || 1;
+      W = stage.clientWidth; H = stage.clientHeight;
+      canvas.width = W * dpr; canvas.height = H * dpr;
+      canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      laneW = W / LANES;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function laneCenter(lane) { return (lane + 0.5) * laneW; }
+    function carW() { return laneW * 0.56; }
+    function carH() { return carW() * 1.65; }
+    function playerY() { return H * 0.78; }
+
+    // ---------- 랭킹 ----------
+    function loadRank(diff) {
+      try { return JSON.parse(localStorage.getItem('racingRank_' + diff)) || []; }
+      catch (e) { return []; }
+    }
+    function saveRank(diff, entry) {
+      var list = loadRank(diff);
+      list.push(entry);
+      list.sort(function(a, b) { return a.collisions - b.collisions || a.time - b.time; });
+      list = list.slice(0, 10);
+      localStorage.setItem('racingRank_' + diff, JSON.stringify(list));
+      return list;
+    }
+    function renderRank(el, diff, me) {
+      var list = loadRank(diff);
+      var html = '<p class="rank-title">🏆 랭킹 (' + DIFFS[diff].label + ') — 충돌 적은 순</p>';
+      if (list.length === 0) {
+        html += '<div class="rank-empty">아직 기록이 없어요. 첫 주자가 되어보세요!</div>';
+      } else {
+        list.slice(0, 5).forEach(function(r, i) {
+          var isMe = me && r.name === me.name && r.collisions === me.collisions && r.time === me.time;
+          html += '<div class="rank-row' + (isMe ? ' me' : '') + '"><span>' + (i + 1) + '위 ' + r.name +
+                  '</span><span>충돌 ' + r.collisions + '회 · ' + r.time.toFixed(1) + '초</span></div>';
+        });
+      }
+      el.innerHTML = html;
+    }
+
+    // ---------- 상태 전환 ----------
+    var hud = document.getElementById('hud');
+    var btnL = document.getElementById('btnL');
+    var btnR = document.getElementById('btnR');
+    var startOverlay = document.getElementById('startOverlay');
+    var finishOverlay = document.getElementById('finishOverlay');
+
+    function setState(s) {
+      G.state = s;
+      hud.style.display = s === 'playing' ? 'block' : 'none';
+      btnL.style.display = btnR.style.display = s === 'playing' ? 'flex' : 'none';
+      startOverlay.classList.toggle('hidden', s !== 'start');
+      finishOverlay.classList.toggle('hidden', s !== 'finished');
+    }
+
+    function startGame() {
+      var cfg = DIFFS[G.diff];
+      G.playerLane = 2;
+      G.playerX = laneCenter(2);
+      G.collisions = 0;
+      G.speed = cfg.base;
+      G.distance = 0;
+      G.target = Math.round(cfg.max * 60 * 0.92);
+      G.elapsed = 0;
+      G.invUntil = 0;
+      G.obstacles = [];
+      G.finishY = null;
+      G.dash = 0;
+      G.spawnTimer = 0;
+      G.lastSpawnLane = -1;
+      G.saved = false;
+      G.rivals = [];
+      for (var i = 0; i < cfg.rivals; i++) {
+        G.rivals.push({
+          lane: pickRivalLane(),
+          y: -120 - i * 180,
+          speed: cfg.rivalSpeed * (0.9 + Math.random() * 0.25),
+          color: i % 2 === 0 ? '#D85A30' : '#D4537E',
+          glass: i % 2 === 0 ? '#F5C4B3' : '#F4C0D1'
+        });
+      }
+      setState('playing');
+    }
+    window.startGame = startGame;
+
+    function pickRivalLane() {
+      var lane;
+      do { lane = Math.floor(Math.random() * LANES); } while (lane === 2);
+      return lane;
+    }
+
+    function finishRace() {
+      setState('finished');
+      document.getElementById('finalHits').textContent = G.collisions + '회';
+      document.getElementById('finalTime').textContent = G.elapsed.toFixed(1) + '초';
+      var input = document.getElementById('nameInput');
+      input.value = localStorage.getItem('racingName') || '';
+      input.disabled = false;
+      document.getElementById('saveBtn').disabled = false;
+      renderRank(document.getElementById('finishRank'), G.diff);
+    }
+    window.finishRace = finishRace;
+
+    // ---------- 게임 로직 ----------
+    function spawnObstacle() {
+      var lane;
+      do { lane = Math.floor(Math.random() * LANES); } while (lane === G.lastSpawnLane);
+      G.lastSpawnLane = lane;
+      // 같은 차선 상단에 장애물이 몰려있으면 생략 (통과 불가능 방지)
+      for (var i = 0; i < G.obstacles.length; i++) {
+        if (G.obstacles[i].lane === lane && G.obstacles[i].y < 140) return;
+      }
+      G.obstacles.push({lane: lane, y: -40});
+    }
+
+    function boxHit(x1, y1, w1, h1, x2, y2, w2, h2) {
+      return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+    }
+
+    function handleCollision() {
+      var cfg = DIFFS[G.diff];
+      G.collisions++;
+      G.speed = Math.max(cfg.base * 0.8, G.speed * 0.55);
+      G.invUntil = G.elapsed + 1.5;
+    }
+
+    function checkCollisions() {
+      var cw = carW(), ch = carH();
+      var px = G.playerX - cw / 2, py = playerY();
+      var ob = laneW * 0.4;
+
+      for (var i = G.obstacles.length - 1; i >= 0; i--) {
+        var o = G.obstacles[i];
+        var ox = laneCenter(o.lane) - ob / 2;
+        if (boxHit(px, py, cw, ch, ox, o.y, ob, ob)) {
+          G.obstacles.splice(i, 1);
+          handleCollision();
+          return;
+        }
+      }
+      for (var j = 0; j < G.rivals.length; j++) {
+        var r = G.rivals[j];
+        var rx = laneCenter(r.lane) - cw / 2;
+        if (boxHit(px, py, cw, ch, rx, r.y, cw, ch)) {
+          r.y -= 160;
+          handleCollision();
+          return;
+        }
+      }
+    }
+
+    function update(dt) {
+      if (G.state !== 'playing') return;
+      var cfg = DIFFS[G.diff];
+      G.elapsed += dt;
+      if (G.speed < cfg.max) G.speed = Math.min(cfg.max, G.speed + cfg.accel * dt);
+      G.distance += G.speed * dt;
+      var road = G.speed * PX * dt;
+      G.dash += road;
+
+      if (G.finishY === null) {
+        G.spawnTimer += dt * 1000;
+        if (G.spawnTimer >= cfg.spawnMs) { G.spawnTimer = 0; spawnObstacle(); }
+      }
+
+      for (var i = G.obstacles.length - 1; i >= 0; i--) {
+        G.obstacles[i].y += road;
+        if (G.obstacles[i].y > H + 60) G.obstacles.splice(i, 1);
+      }
+
+      G.rivals.forEach(function(r) {
+        r.y += (G.speed - r.speed) * PX * dt;
+        if (r.y > H + 100) { // 추월 완료 → 새 라이벌이 앞에서 등장
+          r.y = -160;
+          r.lane = pickRivalLane();
+          r.speed = cfg.rivalSpeed * (0.9 + Math.random() * 0.25);
+        }
+        if (r.y < -700) r.y = -700;
+      });
+
+      var tx = laneCenter(G.playerLane);
+      G.playerX += (tx - G.playerX) * Math.min(1, dt * 14);
+
+      if (G.elapsed > G.invUntil) checkCollisions();
+
+      if (G.distance >= G.target && G.finishY === null) G.finishY = -80;
+      if (G.finishY !== null) {
+        G.finishY += road;
+        if (G.finishY > playerY() + carH()) finishRace();
+      }
+    }
+
+    // ---------- 그리기 ----------
+    function roundRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function drawCar(cx, y, color, glass) {
+      var w = carW(), h = carH();
+      ctx.fillStyle = color;
+      roundRect(cx - w / 2, y, w, h, 7);
+      ctx.fill();
+      ctx.fillStyle = glass;
+      roundRect(cx - w / 2 + w * 0.15, y + h * 0.16, w * 0.7, h * 0.2, 4);
+      ctx.fill();
+      roundRect(cx - w / 2 + w * 0.15, y + h * 0.68, w * 0.7, h * 0.15, 4);
+      ctx.fill();
+    }
+
+    function draw() {
+      ctx.fillStyle = '#2C2C2A';
+      ctx.fillRect(0, 0, W, H);
+
+      // 차선 점선 (아래로 흐름)
+      ctx.strokeStyle = '#5F5E5A';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([26, 22]);
+      ctx.lineDashOffset = -G.dash;
+      for (var i = 1; i < LANES; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * laneW, 0);
+        ctx.lineTo(i * laneW, H);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      // 도로 가장자리
+      ctx.strokeStyle = '#F1EFE8';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(2, H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(W - 2, 0); ctx.lineTo(W - 2, H); ctx.stroke();
+
+      // 결승선 (체크무늬)
+      if (G.finishY !== null) {
+        var cell = W / 10;
+        for (var r = 0; r < 2; r++) {
+          for (var c = 0; c < 10; c++) {
+            ctx.fillStyle = (r + c) % 2 === 0 ? '#F1EFE8' : '#2C2C2A';
+            ctx.fillRect(c * cell, G.finishY + r * cell, cell, cell);
+          }
+        }
+      }
+
+      // 장애물
+      var ob = laneW * 0.4;
+      G.obstacles.forEach(function(o) {
+        ctx.fillStyle = '#EF9F27';
+        roundRect(laneCenter(o.lane) - ob / 2, o.y, ob, ob, 4);
+        ctx.fill();
+        ctx.fillStyle = '#FAEEDA';
+        ctx.fillRect(laneCenter(o.lane) - ob / 2 + 3, o.y + ob * 0.4, ob - 6, ob * 0.2);
+      });
+
+      // 라이벌
+      G.rivals.forEach(function(r) {
+        if (r.y > -carH() - 10 && r.y < H + 10) drawCar(laneCenter(r.lane), r.y, r.color, r.glass);
+      });
+
+      // 플레이어 (무적 시간엔 깜빡임)
+      if (G.state === 'playing' || G.state === 'finished') {
+        var blink = G.elapsed < G.invUntil && Math.floor(G.elapsed * 10) % 2 === 0;
+        ctx.globalAlpha = blink ? 0.3 : 1;
+        drawCar(G.playerX, playerY(), '#1D9E75', '#9FE1CB');
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // ---------- HUD ----------
+    var chipHits = document.getElementById('chipHits');
+    var chipSpeed = document.getElementById('chipSpeed');
+    var chipTime = document.getElementById('chipTime');
+    var progressFill = document.getElementById('progressFill');
+
+    function updateHud() {
+      if (G.state !== 'playing') return;
+      chipHits.textContent = '충돌 ' + G.collisions;
+      chipSpeed.textContent = Math.round(G.speed) + 'km/h';
+      chipTime.textContent = G.elapsed.toFixed(1) + '초';
+      progressFill.style.width = Math.min(100, G.distance / G.target * 100) + '%';
+    }
+
+    // ---------- 루프 ----------
+    var lastT = performance.now();
+    function loop(t) {
+      var dt = Math.min(0.05, (t - lastT) / 1000);
+      lastT = t;
+      update(dt);
+      draw();
+      updateHud();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    // ---------- 입력 ----------
+    function move(dir) {
+      if (G.state !== 'playing') return;
+      G.playerLane = Math.max(0, Math.min(LANES - 1, G.playerLane + dir));
+    }
+    window.move = move;
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowLeft') { move(-1); e.preventDefault(); }
+      else if (e.key === 'ArrowRight') { move(1); e.preventDefault(); }
+    });
+    btnL.addEventListener('pointerdown', function(e) { e.preventDefault(); move(-1); });
+    btnR.addEventListener('pointerdown', function(e) { e.preventDefault(); move(1); });
+
+    // ---------- UI 이벤트 ----------
+    document.getElementById('diffPills').addEventListener('click', function(e) {
+      var btn = e.target.closest('.pill');
+      if (!btn) return;
+      G.diff = btn.dataset.diff;
+      document.querySelectorAll('#diffPills .pill').forEach(function(p) {
+        p.classList.toggle('active', p === btn);
+      });
+      var panel = document.getElementById('startRank');
+      if (!panel.classList.contains('hidden')) renderRank(panel, G.diff);
+    });
+
+    document.getElementById('startBtn').addEventListener('click', startGame);
+    document.getElementById('retryBtn').addEventListener('click', function() { setState('start'); });
+
+    document.getElementById('rankBtn').addEventListener('click', function() {
+      var panel = document.getElementById('startRank');
+      panel.classList.toggle('hidden');
+      if (!panel.classList.contains('hidden')) renderRank(panel, G.diff);
+    });
+
+    document.getElementById('saveBtn').addEventListener('click', function() {
+      if (G.saved) return;
+      var name = document.getElementById('nameInput').value.trim() || '무명';
+      localStorage.setItem('racingName', name);
+      var entry = {name: name, collisions: G.collisions, time: Math.round(G.elapsed * 10) / 10};
+      saveRank(G.diff, entry);
+      G.saved = true;
+      document.getElementById('nameInput').disabled = true;
+      document.getElementById('saveBtn').disabled = true;
+      renderRank(document.getElementById('finishRank'), G.diff, entry);
+    });
+
+    setState('start');
+  </script>
+</body>
+</html>
