@@ -17,7 +17,8 @@
     #progressBar {height: 4px; background: rgba(255,255,255,0.18); border-radius: 2px; margin-bottom: 8px;}
     #progressFill {width: 0%; height: 100%; background: #9FE1CB; border-radius: 2px;}
     .chips {display: flex; justify-content: space-between;}
-    .chip {background: rgba(0,0,0,0.55); font-size: 12px; padding: 3px 9px; border-radius: 10px; color: #F1EFE8;}
+    .chip {background: rgba(0,0,0,0.55); font-size: 11px; padding: 3px 7px; border-radius: 10px; color: #F1EFE8;}
+    #chipStage {color: #B5D4F4;}
     #chipScore {color: #9FE1CB;}
     #chipBalls {color: #F0997B;}
 
@@ -56,6 +57,7 @@
     <div id="hud">
       <div id="progressBar"><div id="progressFill"></div></div>
       <div class="chips">
+        <span class="chip" id="chipStage">MAP 1/10</span>
         <span class="chip" id="chipScore">0점</span>
         <span class="chip" id="chipBalls">볼 3</span>
         <span class="chip" id="chipTime">0.0초</span>
@@ -78,10 +80,18 @@
       </div>
     </div>
 
+    <div class="overlay hidden" id="stageOverlay">
+      <div class="panel" style="max-width:260px;">
+        <h1 id="stageClearTitle">🎉 스테이지 클리어!</h1>
+        <p class="stats" id="stageClearInfo"></p>
+        <p class="sub" id="stageClearNext">다음 스테이지 준비 중...</p>
+      </div>
+    </div>
+
     <div class="overlay hidden" id="finishOverlay">
       <div class="panel">
         <h1 id="finishTitle">🏁 클리어!</h1>
-        <p class="stats">점수 <span class="score" id="finalScore"></span> · 기록 <span class="time" id="finalTime"></span></p>
+        <p class="stats">스테이지 <span id="finalStage"></span>/10 · 점수 <span class="score" id="finalScore"></span> · 기록 <span class="time" id="finalTime"></span></p>
         <div class="name-row">
           <input type="text" id="nameInput" maxlength="10" placeholder="이름 입력">
           <button id="saveBtn">저장</button>
@@ -101,14 +111,17 @@
     };
     var COLS = 7;
     var ROW_COLORS = ['#E24B4A', '#EF9F27', '#F1C40F', '#97C459', '#378ADD', '#9b59b6'];
+    var MAX_STAGE = 10;
+    var SPEED_STEP = 24;   // 스테이지마다 공 속도 +24
+    var ROWS_CAP = 8;
 
     var G = {
       state: 'start', diff: 'normal',
-      score: 0, balls: 0, elapsed: 0,
+      score: 0, balls: 0, elapsed: 0, stage: 1,
       bricks: [], totalBricks: 0, brokenBricks: 0,
       paddleX: 0, paddleW: 0,
       ball: {x: 0, y: 0, vx: 0, vy: 0, r: 7, stuck: true},
-      speed: 380, saved: false, particles: []
+      speed: 380, saved: false, particles: [], stageTimer: null
     };
     window.G = G;
 
@@ -154,7 +167,7 @@
         list.slice(0, 5).forEach(function(r, i) {
           var isMe = me && r.name === me.name && r.score === me.score && r.time === me.time;
           html += '<div class="rank-row' + (isMe ? ' me' : '') + '"><span>' + (i + 1) + '위 ' + r.name +
-                  '</span><span>' + r.score + '점 · ' + r.time.toFixed(1) + '초</span></div>';
+                  '</span><span>' + r.score + '점 · S' + (r.stage || 1) + '</span></div>';
         });
       }
       el.innerHTML = html;
@@ -165,27 +178,35 @@
     var startOverlay = document.getElementById('startOverlay');
     var finishOverlay = document.getElementById('finishOverlay');
 
+    var stageOverlay = document.getElementById('stageOverlay');
+
     function setState(s) {
       G.state = s;
       hud.style.display = s === 'playing' ? 'block' : 'none';
       startOverlay.classList.toggle('hidden', s !== 'start');
       finishOverlay.classList.toggle('hidden', s !== 'finished');
+      stageOverlay.classList.toggle('hidden', s !== 'stageclear');
     }
 
     function buildBricks() {
       var cfg = DIFFS[G.diff];
       G.bricks = [];
+      // 스테이지가 오를수록 줄 수 증가(최대 ROWS_CAP), 상단 일부 줄은 강화벽돌(2회 타격)
+      var rows = Math.min(ROWS_CAP, cfg.rows + Math.floor((G.stage - 1) / 2));
+      var toughRows = G.stage <= 2 ? 0 : Math.min(rows, Math.floor((G.stage - 1) / 2));
       var usableW = W - SIDE_PAD * 2 - BRICK_GAP * (COLS - 1);
       var bw = usableW / COLS;
       var bh = 22;
-      for (var r = 0; r < cfg.rows; r++) {
+      for (var r = 0; r < rows; r++) {
         for (var c = 0; c < COLS; c++) {
+          var hp = (r < toughRows) ? 2 : 1;
           G.bricks.push({
             x: SIDE_PAD + c * (bw + BRICK_GAP),
             y: TOP_MARGIN + 14 + r * (bh + BRICK_GAP),
             w: bw, h: bh,
             color: ROW_COLORS[r % ROW_COLORS.length],
-            points: (cfg.rows - r) * 10,
+            points: (rows - r) * 10,
+            hp: hp, maxHp: hp,
             alive: true
           });
         }
@@ -216,20 +237,46 @@
       G.score = 0;
       G.balls = cfg.lives;
       G.elapsed = 0;
+      G.stage = 1;
       G.speed = cfg.speed;
       G.paddleW = W * cfg.paddle;
       G.paddleX = W / 2;
       G.particles = [];
       G.saved = false;
+      clearTimeout(G.stageTimer);
       buildBricks();
       resetBall();
       setState('playing');
     }
     window.startGame = startGame;
 
+    function stageClear() {
+      setState('stageclear');
+      document.getElementById('stageClearTitle').textContent = '🎉 스테이지 ' + G.stage + ' 클리어!';
+      document.getElementById('stageClearInfo').innerHTML =
+        '점수 <span class="score">' + G.score + '점</span> · 볼 ' + G.balls + '개';
+      document.getElementById('stageClearNext').textContent =
+        '스테이지 ' + (G.stage + 1) + '/' + MAX_STAGE + ' 준비 중...';
+      clearTimeout(G.stageTimer);
+      G.stageTimer = setTimeout(function() {
+        if (G.state === 'stageclear') nextStage();
+      }, 1500);
+    }
+
+    function nextStage() {
+      G.stage++;
+      G.speed += SPEED_STEP;
+      buildBricks();
+      resetBall();
+      setState('playing');
+    }
+    window.nextStage = nextStage;
+
     function finishGame(win) {
       setState('finished');
-      document.getElementById('finishTitle').textContent = win ? '🏆 클리어!' : '💥 게임 오버';
+      clearTimeout(G.stageTimer);
+      document.getElementById('finishTitle').textContent = win ? '🏆 올 클리어!' : '💥 게임 오버';
+      document.getElementById('finalStage').textContent = G.stage;
       document.getElementById('finalScore').textContent = G.score + '점';
       document.getElementById('finalTime').textContent = G.elapsed.toFixed(1) + '초';
       var input = document.getElementById('nameInput');
@@ -275,10 +322,15 @@
         var cy = Math.max(br.y, Math.min(b.y, br.y + br.h));
         var dx = b.x - cx, dy = b.y - cy;
         if (dx * dx + dy * dy <= b.r * b.r) {
-          br.alive = false;
-          G.brokenBricks++;
-          G.score += br.points;
+          br.hp--;
           spawnParticles(br.x + br.w / 2, br.y + br.h / 2, br.color);
+          if (br.hp <= 0) {          // 완전히 깨짐
+            br.alive = false;
+            G.brokenBricks++;
+            G.score += br.points;
+          } else {                    // 강화벽돌 1차 타격
+            G.score += 5;
+          }
           // 반사 축: 침투가 작은 축으로 튕김
           var overlapX = Math.min(b.x + b.r, br.x + br.w) - Math.max(b.x - b.r, br.x);
           var overlapY = Math.min(b.y + b.r, br.y + br.h) - Math.max(b.y - b.r, br.y);
@@ -297,24 +349,34 @@
         b.x = G.paddleX;
         b.y = paddleTop() - b.r - 1;
       } else {
-        b.x += b.vx * dt;
-        b.y += b.vy * dt;
-
-        if (b.x - b.r < 3) { b.x = 3 + b.r; b.vx = Math.abs(b.vx); }
-        if (b.x + b.r > W - 3) { b.x = W - 3 - b.r; b.vx = -Math.abs(b.vx); }
-        if (b.y - b.r < 0) { b.y = b.r; b.vy = Math.abs(b.vy); }
-
-        reflectOffBricks();
-        reflectOffPaddle();
-
-        if (b.y - b.r > H) { // 바닥으로 떨어짐
+        // 고속에서 벽돌을 통과(터널링)하지 않도록 이동을 잘게 나눠 처리
+        var dist = Math.sqrt(b.vx * b.vx + b.vy * b.vy) * dt;
+        var steps = Math.max(1, Math.ceil(dist / b.r));
+        var sdt = dt / steps;
+        var lost = false;
+        for (var s = 0; s < steps; s++) {
+          b.x += b.vx * sdt;
+          b.y += b.vy * sdt;
+          if (b.x - b.r < 3) { b.x = 3 + b.r; b.vx = Math.abs(b.vx); }
+          if (b.x + b.r > W - 3) { b.x = W - 3 - b.r; b.vx = -Math.abs(b.vx); }
+          if (b.y - b.r < 0) { b.y = b.r; b.vy = Math.abs(b.vy); }
+          reflectOffBricks();
+          reflectOffPaddle();
+          if (b.y - b.r > H) { lost = true; break; }
+        }
+        if (lost) { // 바닥으로 떨어짐
           G.balls--;
           if (G.balls <= 0) { finishGame(false); return; }
           resetBall();
+          return;
         }
       }
 
-      if (G.brokenBricks >= G.totalBricks) { finishGame(true); return; }
+      if (G.brokenBricks >= G.totalBricks) {
+        if (G.stage >= MAX_STAGE) finishGame(true);
+        else stageClear();
+        return;
+      }
 
       for (var i = G.particles.length - 1; i >= 0; i--) {
         var p = G.particles[i];
@@ -338,12 +400,16 @@
       ctx.fillStyle = '#1b1b2b';
       ctx.fillRect(0, 0, W, H);
 
-      // 벽돌
+      // 벽돌 (강화벽돌은 안쪽에 흰 사각 표식)
       G.bricks.forEach(function(br) {
         if (!br.alive) return;
         ctx.fillStyle = br.color;
         roundRect(br.x, br.y, br.w, br.h, 4);
         ctx.fill();
+        if (br.hp >= 2) {
+          ctx.fillStyle = 'rgba(255,255,255,0.4)';
+          ctx.fillRect(br.x + br.w / 2 - 5, br.y + br.h / 2 - 5, 10, 10);
+        }
       });
 
       // 파티클
@@ -377,6 +443,7 @@
     }
 
     // ---------- HUD ----------
+    var chipStage = document.getElementById('chipStage');
     var chipScore = document.getElementById('chipScore');
     var chipBalls = document.getElementById('chipBalls');
     var chipTime = document.getElementById('chipTime');
@@ -384,6 +451,7 @@
 
     function updateHud() {
       if (G.state !== 'playing') return;
+      chipStage.textContent = 'MAP ' + G.stage + '/' + MAX_STAGE;
       chipScore.textContent = G.score + '점';
       chipBalls.textContent = '볼 ' + G.balls;
       chipTime.textContent = G.elapsed.toFixed(1) + '초';
@@ -456,7 +524,7 @@
       if (G.saved) return;
       var name = document.getElementById('nameInput').value.trim() || '무명';
       localStorage.setItem('breakoutName', name);
-      var entry = {name: name, score: G.score, time: Math.round(G.elapsed * 10) / 10};
+      var entry = {name: name, score: G.score, stage: G.stage, time: Math.round(G.elapsed * 10) / 10};
       saveRank(G.diff, entry);
       G.saved = true;
       document.getElementById('nameInput').disabled = true;
