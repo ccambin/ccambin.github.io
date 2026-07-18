@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>HSK5급 중국어 회화</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; font-family: 'Inter', 'Noto Sans KR', sans-serif;
+    background: linear-gradient(160deg, #eef2ff, #e0e7ff);
+    color: #1e293b; min-height: 100vh;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 12px 12px 28px; }
+  h1 { font-size: 1.25rem; text-align: center; margin: 8px 0 2px; }
+  .sub { text-align: center; color: #64748b; font-size: 0.78rem; margin-bottom: 12px; }
+
+  .hidden { display: none !important; }
+
+  /* ===== 홈 화면 ===== */
+  .card {
+    background: #fff; border-radius: 14px; padding: 14px;
+    box-shadow: 0 4px 14px rgba(30,41,59,0.08); margin-bottom: 10px;
+    cursor: pointer; transition: transform .12s, box-shadow .12s;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .card:active { transform: scale(0.98); }
+  .card .emoji { font-size: 1.7rem; width: 42px; text-align: center; }
+  .card .info { flex: 1; }
+  .card .info .zh { font-size: 1.05rem; font-weight: 700; }
+  .card .info .ko { font-size: 0.8rem; color: #64748b; }
+  .card .done-badge {
+    font-size: 0.7rem; background: #dcfce7; color: #16a34a;
+    padding: 3px 8px; border-radius: 999px; font-weight: 700;
+  }
+
+  /* ===== 회화 화면 상단 (선생님 / 카메라) ===== */
+  .stage {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;
+  }
+  .panel {
+    position: relative; background: #fff; border-radius: 14px; overflow: hidden;
+    box-shadow: 0 4px 14px rgba(30,41,59,0.08); aspect-ratio: 3/4;
+  }
+  .panel .label {
+    position: absolute; top: 6px; left: 6px; z-index: 3;
+    background: rgba(15,23,42,0.6); color: #fff; font-size: 0.66rem;
+    padding: 2px 7px; border-radius: 999px;
+  }
+  .teacher-panel { background: linear-gradient(160deg, #f1f5f9, #dbeafe); }
+  .teacher-panel svg { width: 100%; height: 100%; display: block; }
+  #cameraVideo { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); background:#0f172a; }
+  .cam-overlay {
+    position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 8px; color: #e2e8f0;
+    background: #0f172a; text-align: center; padding: 8px;
+  }
+  .cam-overlay button {
+    background: #6366f1; color: #fff; border: none; border-radius: 10px;
+    padding: 9px 14px; font-size: 0.82rem; font-weight: 700; cursor: pointer;
+  }
+  .cam-overlay .cam-emoji { font-size: 1.6rem; }
+  .cam-overlay small { font-size: 0.66rem; color: #94a3b8; }
+
+  /* 선생님 말풍선 */
+  .bubble {
+    position: absolute; left: 4px; right: 4px; bottom: 6px; z-index: 3;
+    background: rgba(255,255,255,0.95); border-radius: 10px; padding: 7px 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 0.8rem; line-height: 1.35;
+    text-align: center;
+  }
+  .bubble .zh { font-weight: 700; color: #0f172a; }
+  .listening-ring { position:absolute; inset:0; border:3px solid transparent; border-radius:14px; z-index:4; pointer-events:none; }
+  .panel.rec .listening-ring { border-color:#ef4444; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+
+  /* 입 애니메이션 */
+  #mouth { transform-origin: center; transform-box: fill-box; }
+  .teacher-panel.speaking #mouth { animation: talk .28s ease-in-out infinite alternate; }
+  @keyframes talk { from { transform: scaleY(0.35); } to { transform: scaleY(1.15); } }
+
+  /* ===== 대사 카드 ===== */
+  .dialogue {
+    background: #fff; border-radius: 14px; padding: 14px;
+    box-shadow: 0 4px 14px rgba(30,41,59,0.08); margin-bottom: 10px; min-height: 128px;
+  }
+  .turn-tag { font-size: 0.7rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; display: inline-block; margin-bottom: 8px; }
+  .turn-tag.teacher { background: #dbeafe; color: #2563eb; }
+  .turn-tag.student { background: #fef3c7; color: #d97706; }
+  .line-zh { font-size: 1.4rem; font-weight: 800; letter-spacing: 1px; line-height: 1.5; }
+  .line-py { font-size: 0.92rem; color: #6366f1; margin-top: 4px; }
+  .line-ko { font-size: 0.88rem; color: #475569; margin-top: 4px; }
+
+  .result { margin-top: 10px; font-size: 0.85rem; border-radius: 10px; padding: 8px 10px; display: none; }
+  .result.show { display: block; }
+  .result.good { background: #dcfce7; color: #15803d; }
+  .result.soso { background: #fef9c3; color: #a16207; }
+  .result.bad  { background: #fee2e2; color: #b91c1c; }
+  .result .heard { color: #334155; font-size: 0.78rem; margin-top: 3px; }
+
+  /* ===== 컨트롤 ===== */
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    flex: 1; min-width: 0; border: none; border-radius: 12px; padding: 13px 8px;
+    font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: transform .1s;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-mic { background: #ef4444; color: #fff; }
+  .btn-mic.rec { background: #b91c1c; }
+  .btn-ghost { background: #e2e8f0; color: #334155; }
+  .btn:disabled { opacity: 0.45; cursor: default; }
+
+  .toggles { display: flex; gap: 8px; justify-content: center; margin: 10px 0; }
+  .toggles button {
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 999px;
+    padding: 6px 12px; font-size: 0.74rem; cursor: pointer; color: #475569;
+  }
+  .toggles button.off { opacity: 0.5; text-decoration: line-through; }
+
+  .progressbar { height: 6px; background: #e2e8f0; border-radius: 999px; overflow: hidden; margin-bottom: 12px; }
+  .progressbar > div { height: 100%; background: #6366f1; width: 0; transition: width .3s; }
+
+  .topbar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .topbar .back { background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 6px 11px; font-size: 0.8rem; cursor: pointer; }
+  .topbar .title { font-weight: 700; font-size: 0.95rem; flex: 1; }
+
+  .voice-notice { background:#fef3c7; color:#92400e; border-radius:12px; padding:10px 12px; font-size:0.76rem; line-height:1.55; margin-bottom:10px; }
+  .voice-notice b { color:#b45309; }
+  .voice-notice button { display:block; margin-top:7px; background:#f59e0b; color:#fff; border:none; border-radius:8px; padding:5px 12px; font-size:0.72rem; cursor:pointer; }
+
+  .hint { font-size: 0.72rem; color: #94a3b8; text-align: center; margin-top: 4px; }
+  .complete { text-align: center; padding: 20px 10px; }
+  .complete .big { font-size: 2.4rem; }
+  .complete h2 { margin: 8px 0; }
+  .complete button { background: #6366f1; color:#fff; border:none; border-radius: 12px; padding: 12px 20px; font-weight: 700; font-size: 0.9rem; cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===================== 홈 ===================== -->
+  <div id="home">
+    <h1>🇨🇳 HSK5급 중국어 회화</h1>
+    <div class="sub">선생님과 마주보며 말하기 연습 · 마이크로 대답해 보세요</div>
+    <div id="scenarioList"></div>
+    <div class="hint">💡 오른쪽 카메라로 내 얼굴을 보며 발음하면 학습 효과가 좋아요</div>
+  </div>
+
+  <!-- ===================== 회화 ===================== -->
+  <div id="practice" class="hidden">
+    <div class="topbar">
+      <button class="back" onclick="goHome()">← 목록</button>
+      <div class="title" id="scTitle"></div>
+    </div>
+    <div class="progressbar"><div id="progFill"></div></div>
+
+    <div id="voiceNotice" class="voice-notice hidden">
+      🔈 이 기기에 <b>중국어 음성</b>이 없어 온라인 발음을 사용해요. 소리가 안 나면 인터넷 연결을 확인하거나, 아래처럼 중국어 음성을 설치하면 오프라인에서도 자연스럽게 들려요.
+      <br><small>Windows: 설정 › 시간 및 언어 › 언어 › <b>중국어(간체) 추가</b> → 음성 설치 후 브라우저 재시작</small>
+      <button onclick="document.getElementById('voiceNotice').classList.add('hidden')">닫기</button>
+    </div>
+
+    <div class="stage">
+      <!-- 선생님 -->
+      <div class="panel teacher-panel" id="teacherPanel">
+        <span class="label">👨‍🏫 老师</span>
+        <svg viewBox="0 0 120 160" xmlns="http://www.w3.org/2000/svg">
+          <!-- 목/어깨 -->
+          <path d="M20 160 Q20 120 60 120 Q100 120 100 160 Z" fill="#334155"/>
+          <path d="M52 118 L60 132 L68 118 Z" fill="#e2e8f0"/>
+          <rect x="57" y="126" width="6" height="26" rx="2" fill="#dc2626"/>
+          <rect x="34" y="108" width="52" height="24" rx="8" fill="#f8fafc"/>
+          <!-- 머리 -->
+          <ellipse cx="60" cy="72" rx="30" ry="34" fill="#f5c8a0"/>
+          <!-- 귀 -->
+          <ellipse cx="31" cy="74" rx="5" ry="8" fill="#f0b98a"/>
+          <ellipse cx="89" cy="74" rx="5" ry="8" fill="#f0b98a"/>
+          <!-- 머리카락 -->
+          <path d="M30 66 Q30 34 60 34 Q90 34 90 66 Q80 48 60 48 Q40 48 30 66 Z" fill="#1f2937"/>
+          <!-- 안경 -->
+          <circle cx="48" cy="72" r="9" fill="none" stroke="#334155" stroke-width="2.5"/>
+          <circle cx="72" cy="72" r="9" fill="none" stroke="#334155" stroke-width="2.5"/>
+          <line x1="57" y1="72" x2="63" y2="72" stroke="#334155" stroke-width="2.5"/>
+          <!-- 눈 -->
+          <circle cx="48" cy="72" r="2.6" fill="#1f2937"/>
+          <circle cx="72" cy="72" r="2.6" fill="#1f2937"/>
+          <!-- 눈썹 -->
+          <path d="M40 60 Q48 56 56 60" stroke="#1f2937" stroke-width="2" fill="none"/>
+          <path d="M64 60 Q72 56 80 60" stroke="#1f2937" stroke-width="2" fill="none"/>
+          <!-- 코 -->
+          <path d="M60 76 L57 88 L63 88 Z" fill="#eab183"/>
+          <!-- 입 -->
+          <ellipse id="mouth" cx="60" cy="97" rx="9" ry="4" fill="#a83250"/>
+        </svg>
+        <div class="bubble" id="teacherBubble"><span class="zh">你好！</span></div>
+        <div class="listening-ring"></div>
+      </div>
+
+      <!-- 카메라 -->
+      <div class="panel" id="camPanel">
+        <span class="label">🙂 我</span>
+        <video id="cameraVideo" autoplay playsinline muted></video>
+        <div class="cam-overlay" id="camOverlay">
+          <div class="cam-emoji">📷</div>
+          <button onclick="startCamera()">카메라 켜기</button>
+          <small>선택 사항 · 없어도 학습 가능</small>
+        </div>
+        <div class="listening-ring"></div>
+      </div>
+    </div>
+
+    <div class="toggles">
+      <button id="tgPy" onclick="togglePy()">병음 보기</button>
+      <button id="tgKo" onclick="toggleKo()">뜻 보기</button>
+    </div>
+
+    <div class="dialogue">
+      <span class="turn-tag" id="turnTag">선생님</span>
+      <div class="line-zh" id="lineZh"></div>
+      <div class="line-py" id="linePy"></div>
+      <div class="line-ko" id="lineKo"></div>
+      <div class="result" id="result"></div>
+    </div>
+
+    <div class="controls" id="controls"></div>
+    <div class="hint" id="ctrlHint"></div>
+  </div>
+
+  <!-- ===================== 완료 ===================== -->
+  <div id="doneScreen" class="hidden">
+    <div class="complete">
+      <div class="big">🎉</div>
+      <h2 id="doneTitle">잘하셨어요!</h2>
+      <p class="sub" id="doneSub"></p>
+      <button onclick="goHome()">목록으로 돌아가기</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ============ 회화 데이터 (HSK5급 수준) ============ */
+const SCENARIOS = [
+  { id:'meet', emoji:'👋', titleZh:'初次见面', titleKo:'첫 만남 · 자기소개', turns:[
+    {s:'t', zh:'你好！很高兴认识你。', py:'Nǐ hǎo! Hěn gāoxìng rènshi nǐ.', ko:'안녕하세요! 만나서 반갑습니다.'},
+    {s:'u', zh:'你好！我也很高兴认识你。', py:'Nǐ hǎo! Wǒ yě hěn gāoxìng rènshi nǐ.', ko:'안녕하세요! 저도 만나서 반갑습니다.'},
+    {s:'t', zh:'请问你叫什么名字？', py:'Qǐngwèn nǐ jiào shénme míngzi?', ko:'성함이 어떻게 되세요?'},
+    {s:'u', zh:'我叫金民秀，你可以叫我小金。', py:'Wǒ jiào Jīn Mínxiù, nǐ kěyǐ jiào wǒ xiǎo Jīn.', ko:'저는 김민수예요, 샤오진이라고 부르셔도 돼요.'},
+    {s:'t', zh:'你是哪国人？', py:'Nǐ shì nǎ guó rén?', ko:'어느 나라 사람이세요?'},
+    {s:'u', zh:'我是韩国人，来中国工作。', py:'Wǒ shì Hánguó rén, lái Zhōngguó gōngzuò.', ko:'저는 한국인이고, 중국에 일하러 왔어요.'},
+    {s:'t', zh:'你的汉语说得真不错！', py:'Nǐ de Hànyǔ shuō de zhēn búcuò!', ko:'중국어를 정말 잘하시네요!'},
+    {s:'u', zh:'哪里哪里，还差得远呢。', py:'Nǎlǐ nǎlǐ, hái chà de yuǎn ne.', ko:'별말씀을요, 아직 많이 부족해요.'},
+  ]},
+  { id:'restaurant', emoji:'🍜', titleZh:'在餐厅点菜', titleKo:'식당에서 주문하기', turns:[
+    {s:'t', zh:'欢迎光临，请问几位？', py:'Huānyíng guānglín, qǐngwèn jǐ wèi?', ko:'어서 오세요, 몇 분이세요?'},
+    {s:'u', zh:'就我一个人。', py:'Jiù wǒ yí ge rén.', ko:'저 혼자예요.'},
+    {s:'t', zh:'您想吃点儿什么？', py:'Nín xiǎng chī diǎnr shénme?', ko:'무엇을 드시겠어요?'},
+    {s:'u', zh:'请给我来一份宫保鸡丁。', py:'Qǐng gěi wǒ lái yí fèn gōngbǎo jīdīng.', ko:'궁바오지딩 하나 주세요.'},
+    {s:'t', zh:'要不要来点儿米饭？', py:'Yào bu yào lái diǎnr mǐfàn?', ko:'밥도 좀 드릴까요?'},
+    {s:'u', zh:'好的，再来一碗米饭。', py:'Hǎo de, zài lái yì wǎn mǐfàn.', ko:'네, 밥 한 공기 더 주세요.'},
+    {s:'t', zh:'您还需要别的吗？', py:'Nín hái xūyào bié de ma?', ko:'다른 건 더 필요하세요?'},
+    {s:'u', zh:'不用了，谢谢。', py:'Búyòng le, xièxie.', ko:'괜찮습니다, 감사합니다.'},
+  ]},
+  { id:'road', emoji:'🧭', titleZh:'问路', titleKo:'길 묻기', turns:[
+    {s:'t', zh:'你好，你看起来好像迷路了？', py:'Nǐ hǎo, nǐ kàn qǐlai hǎoxiàng mílù le?', ko:'안녕하세요, 길을 잃으신 것 같은데요?'},
+    {s:'u', zh:'是的，请问地铁站怎么走？', py:'Shì de, qǐngwèn dìtiě zhàn zěnme zǒu?', ko:'네, 지하철역은 어떻게 가나요?'},
+    {s:'t', zh:'你一直往前走，到红绿灯往右拐。', py:'Nǐ yìzhí wǎng qián zǒu, dào hónglǜdēng wǎng yòu guǎi.', ko:'쭉 앞으로 가다가 신호등에서 우회전하세요.'},
+    {s:'u', zh:'从这儿走过去大概要多长时间？', py:'Cóng zhèr zǒu guòqu dàgài yào duō cháng shíjiān?', ko:'여기서 걸어가면 대략 얼마나 걸리나요?'},
+    {s:'t', zh:'大概十分钟就到了。', py:'Dàgài shí fēnzhōng jiù dào le.', ko:'대략 10분이면 도착해요.'},
+    {s:'u', zh:'太感谢你了，帮了我大忙。', py:'Tài gǎnxiè nǐ le, bāng le wǒ dà máng.', ko:'정말 감사합니다, 큰 도움이 됐어요.'},
+    {s:'t', zh:'不客气，祝你一路顺利！', py:'Bú kèqi, zhù nǐ yílù shùnlì!', ko:'천만에요, 가시는 길 순조롭길 바라요!'},
+  ]},
+  { id:'hobby', emoji:'🎨', titleZh:'聊爱好', titleKo:'취미 이야기', turns:[
+    {s:'t', zh:'周末你一般喜欢做什么？', py:'Zhōumò nǐ yìbān xǐhuan zuò shénme?', ko:'주말에 보통 뭐 하는 걸 좋아하세요?'},
+    {s:'u', zh:'我喜欢爬山，也喜欢看电影。', py:'Wǒ xǐhuan pá shān, yě xǐhuan kàn diànyǐng.', ko:'등산도 좋아하고 영화 보는 것도 좋아해요.'},
+    {s:'t', zh:'你最近看过什么好看的电影吗？', py:'Nǐ zuìjìn kàn guo shénme hǎokàn de diànyǐng ma?', ko:'최근에 재밌는 영화 본 거 있어요?'},
+    {s:'u', zh:'上个周末我看了一部很感人的电影。', py:'Shàng ge zhōumò wǒ kàn le yí bù hěn gǎnrén de diànyǐng.', ko:'지난 주말에 감동적인 영화를 봤어요.'},
+    {s:'t', zh:'除了这些，你还有别的爱好吗？', py:'Chúle zhèxiē, nǐ hái yǒu bié de àihào ma?', ko:'이것 말고 다른 취미도 있어요?'},
+    {s:'u', zh:'我对摄影特别感兴趣。', py:'Wǒ duì shèyǐng tèbié gǎn xìngqù.', ko:'저는 사진 찍는 것에 특히 관심이 많아요.'},
+    {s:'t', zh:'那我们的爱好很像呢！', py:'Nà wǒmen de àihào hěn xiàng ne!', ko:'그럼 우리 취미가 비슷하네요!'},
+  ]},
+  { id:'travel', emoji:'✈️', titleZh:'旅行计划', titleKo:'여행 계획', turns:[
+    {s:'t', zh:'听说你打算去旅行，是吗？', py:'Tīngshuō nǐ dǎsuàn qù lǚxíng, shì ma?', ko:'여행 갈 계획이라던데, 맞아요?'},
+    {s:'u', zh:'是的，我准备下个月去云南。', py:'Shì de, wǒ zhǔnbèi xià ge yuè qù Yúnnán.', ko:'네, 다음 달에 윈난에 갈 준비를 하고 있어요.'},
+    {s:'t', zh:'你打算在那儿待几天？', py:'Nǐ dǎsuàn zài nàr dāi jǐ tiān?', ko:'거기서 며칠 머물 계획이에요?'},
+    {s:'u', zh:'大概一个星期左右。', py:'Dàgài yí ge xīngqī zuǒyòu.', ko:'대략 일주일 정도요.'},
+    {s:'t', zh:'机票和酒店都订好了吗？', py:'Jīpiào hé jiǔdiàn dōu dìng hǎo le ma?', ko:'항공권이랑 호텔은 다 예약했어요?'},
+    {s:'u', zh:'机票订好了，酒店还在考虑。', py:'Jīpiào dìng hǎo le, jiǔdiàn hái zài kǎolǜ.', ko:'항공권은 예약했고, 호텔은 아직 고민 중이에요.'},
+    {s:'t', zh:'祝你玩儿得开心！', py:'Zhù nǐ wánr de kāixīn!', ko:'즐거운 여행 되세요!'},
+  ]},
+  { id:'doctor', emoji:'🏥', titleZh:'看病', titleKo:'병원에서', turns:[
+    {s:'t', zh:'你哪里不舒服？', py:'Nǐ nǎlǐ bù shūfu?', ko:'어디가 불편하세요?'},
+    {s:'u', zh:'我从昨天开始一直头疼。', py:'Wǒ cóng zuótiān kāishǐ yìzhí tóuténg.', ko:'어제부터 계속 머리가 아파요.'},
+    {s:'t', zh:'有没有发烧或者咳嗽？', py:'Yǒu méiyǒu fāshāo huòzhě késou?', ko:'열이나 기침은 있으세요?'},
+    {s:'u', zh:'有一点儿发烧，还有点儿嗓子疼。', py:'Yǒu yìdiǎnr fāshāo, hái yǒudiǎnr sǎngzi téng.', ko:'열이 조금 있고 목도 좀 아파요.'},
+    {s:'t', zh:'你这是感冒了，要多喝水多休息。', py:'Nǐ zhè shì gǎnmào le, yào duō hē shuǐ duō xiūxi.', ko:'감기예요, 물 많이 마시고 푹 쉬세요.'},
+    {s:'u', zh:'好的，谢谢医生。', py:'Hǎo de, xièxie yīshēng.', ko:'네, 감사합니다 의사 선생님.'},
+  ]},
+  { id:'phone', emoji:'📞', titleZh:'打电话约朋友', titleKo:'전화로 약속 잡기', turns:[
+    {s:'t', zh:'喂，你好，请问是小金吗？', py:'Wéi, nǐ hǎo, qǐngwèn shì xiǎo Jīn ma?', ko:'여보세요, 샤오진 씨인가요?'},
+    {s:'u', zh:'是我，请问你是哪位？', py:'Shì wǒ, qǐngwèn nǐ shì nǎ wèi?', ko:'저예요, 실례지만 누구세요?'},
+    {s:'t', zh:'我是李明，这个周末你有空吗？', py:'Wǒ shì Lǐ Míng, zhège zhōumò nǐ yǒu kòng ma?', ko:'저 리밍이에요, 이번 주말에 시간 있어요?'},
+    {s:'u', zh:'周六上午没事，你有什么安排？', py:'Zhōuliù shàngwǔ méi shì, nǐ yǒu shénme ānpái?', ko:'토요일 오전은 괜찮아요, 무슨 계획 있어요?'},
+    {s:'t', zh:'我想请你一起去看展览。', py:'Wǒ xiǎng qǐng nǐ yìqǐ qù kàn zhǎnlǎn.', ko:'같이 전시회 보러 가자고요.'},
+    {s:'u', zh:'好啊，我们几点见面？', py:'Hǎo a, wǒmen jǐ diǎn jiànmiàn?', ko:'좋아요, 몇 시에 만날까요?'},
+    {s:'t', zh:'上午十点在地铁站门口，怎么样？', py:'Shàngwǔ shí diǎn zài dìtiě zhàn ménkǒu, zěnmeyàng?', ko:'오전 10시에 지하철역 입구 어때요?'},
+    {s:'u', zh:'没问题，到时候见！', py:'Méi wèntí, dào shíhou jiàn!', ko:'문제없어요, 그때 봐요!'},
+  ]},
+  { id:'clothes', emoji:'👕', titleZh:'买衣服', titleKo:'옷 사기', turns:[
+    {s:'t', zh:'欢迎光临，您想看点儿什么？', py:'Huānyíng guānglín, nín xiǎng kàn diǎnr shénme?', ko:'어서 오세요, 뭘 찾으세요?'},
+    {s:'u', zh:'我想买一件外套。', py:'Wǒ xiǎng mǎi yí jiàn wàitào.', ko:'외투 하나 사려고요.'},
+    {s:'t', zh:'您穿多大号的？', py:'Nín chuān duō dà hào de?', ko:'사이즈가 어떻게 되세요?'},
+    {s:'u', zh:'我平时穿中号，可以试试吗？', py:'Wǒ píngshí chuān zhōng hào, kěyǐ shìshi ma?', ko:'보통 M을 입는데, 입어봐도 될까요?'},
+    {s:'t', zh:'当然可以，试衣间在那边。', py:'Dāngrán kěyǐ, shìyījiān zài nàbiān.', ko:'물론이죠, 탈의실은 저쪽이에요.'},
+    {s:'u', zh:'这件有点儿大，有小一号的吗？', py:'Zhè jiàn yǒudiǎnr dà, yǒu xiǎo yí hào de ma?', ko:'이건 좀 큰데, 한 치수 작은 거 있어요?'},
+    {s:'t', zh:'有，我给您换一件。', py:'Yǒu, wǒ gěi nín huàn yí jiàn.', ko:'있어요, 바꿔 드릴게요.'},
+    {s:'u', zh:'这件正合适，多少钱？', py:'Zhè jiàn zhèng héshì, duōshao qián?', ko:'이건 딱 맞네요, 얼마예요?'},
+  ]},
+  { id:'weather', emoji:'🌦️', titleZh:'谈天气', titleKo:'날씨 이야기', turns:[
+    {s:'t', zh:'今天天气怎么样？', py:'Jīntiān tiānqì zěnmeyàng?', ko:'오늘 날씨 어때요?'},
+    {s:'u', zh:'外面阴天，好像要下雨。', py:'Wàimiàn yīntiān, hǎoxiàng yào xià yǔ.', ko:'밖이 흐려서 비가 올 것 같아요.'},
+    {s:'t', zh:'你出门带伞了吗？', py:'Nǐ chū mén dài sǎn le ma?', ko:'나올 때 우산 챙겼어요?'},
+    {s:'u', zh:'带了，天气预报说下午有雨。', py:'Dài le, tiānqì yùbào shuō xiàwǔ yǒu yǔ.', ko:'챙겼어요, 일기예보에서 오후에 비 온댔어요.'},
+    {s:'t', zh:'最近气温变化很大，要注意身体。', py:'Zuìjìn qìwēn biànhuà hěn dà, yào zhùyì shēntǐ.', ko:'요즘 기온 변화가 커서 건강 조심해야 해요.'},
+    {s:'u', zh:'是啊，早晚凉，中午热。', py:'Shì a, zǎowǎn liáng, zhōngwǔ rè.', ko:'맞아요, 아침저녁은 시원하고 낮엔 더워요.'},
+    {s:'t', zh:'听说明天会转晴。', py:'Tīngshuō míngtiān huì zhuǎn qíng.', ko:'내일은 맑아진대요.'},
+    {s:'u', zh:'那太好了，正好可以出去走走。', py:'Nà tài hǎo le, zhènghǎo kěyǐ chūqu zǒuzou.', ko:'잘됐네요, 마침 나가서 좀 걸을 수 있겠어요.'},
+  ]},
+  { id:'bank', emoji:'🏦', titleZh:'在银行开户', titleKo:'은행에서 계좌 개설', turns:[
+    {s:'t', zh:'您好，请问您办理什么业务？', py:'Nín hǎo, qǐngwèn nín bànlǐ shénme yèwù?', ko:'안녕하세요, 어떤 업무 보러 오셨어요?'},
+    {s:'u', zh:'我想开一个银行账户。', py:'Wǒ xiǎng kāi yí ge yínháng zhànghù.', ko:'은행 계좌를 개설하려고요.'},
+    {s:'t', zh:'请出示一下您的护照。', py:'Qǐng chūshì yíxià nín de hùzhào.', ko:'여권 좀 보여주세요.'},
+    {s:'u', zh:'给您，需要填什么表格吗？', py:'Gěi nín, xūyào tián shénme biǎogé ma?', ko:'여기요, 무슨 서류를 작성해야 하나요?'},
+    {s:'t', zh:'请填一下这张申请表。', py:'Qǐng tián yíxià zhè zhāng shēnqǐngbiǎo.', ko:'이 신청서를 작성해 주세요.'},
+    {s:'u', zh:'好的，办这个要手续费吗？', py:'Hǎo de, bàn zhège yào shǒuxùfèi ma?', ko:'알겠어요, 이거 수수료가 있나요?'},
+    {s:'t', zh:'开户是免费的，请放心。', py:'Kāihù shì miǎnfèi de, qǐng fàngxīn.', ko:'계좌 개설은 무료예요, 안심하세요.'},
+    {s:'u', zh:'太好了，谢谢您的帮助。', py:'Tài hǎo le, xièxie nín de bāngzhù.', ko:'잘됐네요, 도와주셔서 감사합니다.'},
+  ]},
+  { id:'interview', emoji:'💼', titleZh:'求职面试', titleKo:'구직 면접', turns:[
+    {s:'t', zh:'请简单介绍一下你自己。', py:'Qǐng jiǎndān jièshào yíxià nǐ zìjǐ.', ko:'자기소개를 간단히 해주세요.'},
+    {s:'u', zh:'我毕业于经济专业，有三年工作经验。', py:'Wǒ bìyè yú jīngjì zhuānyè, yǒu sān nián gōngzuò jīngyàn.', ko:'저는 경제학 전공이고, 3년 경력이 있습니다.'},
+    {s:'t', zh:'你为什么想来我们公司？', py:'Nǐ wèishénme xiǎng lái wǒmen gōngsī?', ko:'왜 우리 회사에 오고 싶으세요?'},
+    {s:'u', zh:'因为贵公司的发展前景很好。', py:'Yīnwèi guì gōngsī de fāzhǎn qiánjǐng hěn hǎo.', ko:'귀사의 발전 전망이 좋기 때문입니다.'},
+    {s:'t', zh:'你觉得自己最大的优点是什么？', py:'Nǐ juéde zìjǐ zuì dà de yōudiǎn shì shénme?', ko:'본인의 가장 큰 장점이 뭐라고 생각하세요?'},
+    {s:'u', zh:'我做事认真，也很有责任心。', py:'Wǒ zuò shì rènzhēn, yě hěn yǒu zérènxīn.', ko:'저는 일을 성실히 하고 책임감이 강합니다.'},
+    {s:'t', zh:'好的，我们会尽快通知你结果。', py:'Hǎo de, wǒmen huì jǐnkuài tōngzhī nǐ jiéguǒ.', ko:'알겠습니다, 결과를 곧 알려드리겠습니다.'},
+    {s:'u', zh:'谢谢您，期待您的好消息。', py:'Xièxie nín, qīdài nín de hǎo xiāoxi.', ko:'감사합니다, 좋은 소식 기다리겠습니다.'},
+  ]},
+  { id:'rent', emoji:'🏠', titleZh:'租房子', titleKo:'집 구하기', turns:[
+    {s:'t', zh:'你想租什么样的房子？', py:'Nǐ xiǎng zū shénme yàng de fángzi?', ko:'어떤 집을 구하세요?'},
+    {s:'u', zh:'我想租一个一室一厅的。', py:'Wǒ xiǎng zū yí ge yì shì yì tīng de.', ko:'방 하나에 거실 하나짜리를 구하려고요.'},
+    {s:'t', zh:'你的预算大概是多少？', py:'Nǐ de yùsuàn dàgài shì duōshao?', ko:'예산은 대략 어느 정도예요?'},
+    {s:'u', zh:'每个月三千块以内。', py:'Měi ge yuè sānqiān kuài yǐnèi.', ko:'한 달에 3천 위안 이내요.'},
+    {s:'t', zh:'这套房子离地铁站很近。', py:'Zhè tào fángzi lí dìtiě zhàn hěn jìn.', ko:'이 집은 지하철역에서 가까워요.'},
+    {s:'u', zh:'周围的生活方便吗？', py:'Zhōuwéi de shēnghuó fāngbiàn ma?', ko:'주변 생활은 편리한가요?'},
+    {s:'t', zh:'附近有超市和医院，很方便。', py:'Fùjìn yǒu chāoshì hé yīyuàn, hěn fāngbiàn.', ko:'근처에 마트와 병원이 있어서 편리해요.'},
+    {s:'u', zh:'那我想先看看房子。', py:'Nà wǒ xiǎng xiān kànkan fángzi.', ko:'그럼 먼저 집을 좀 보고 싶어요.'},
+  ]},
+  { id:'study', emoji:'📚', titleZh:'谈学习汉语', titleKo:'중국어 공부 이야기', turns:[
+    {s:'t', zh:'你学汉语学了多长时间了？', py:'Nǐ xué Hànyǔ xué le duō cháng shíjiān le?', ko:'중국어 배운 지 얼마나 됐어요?'},
+    {s:'u', zh:'差不多两年了。', py:'Chàbuduō liǎng nián le.', ko:'거의 2년 됐어요.'},
+    {s:'t', zh:'你觉得汉语难在哪儿？', py:'Nǐ juéde Hànyǔ nán zài nǎr?', ko:'중국어의 어려운 점이 뭐예요?'},
+    {s:'u', zh:'我觉得声调最难掌握。', py:'Wǒ juéde shēngdiào zuì nán zhǎngwò.', ko:'성조를 익히는 게 제일 어려워요.'},
+    {s:'t', zh:'你平时怎么练习口语？', py:'Nǐ píngshí zěnme liànxí kǒuyǔ?', ko:'평소에 회화 연습은 어떻게 해요?'},
+    {s:'u', zh:'我常常跟中国朋友聊天。', py:'Wǒ chángcháng gēn Zhōngguó péngyou liáotiān.', ko:'중국 친구랑 자주 대화해요.'},
+    {s:'t', zh:'坚持下去，你一定会进步的。', py:'Jiānchí xiàqu, nǐ yídìng huì jìnbù de.', ko:'꾸준히 하면 반드시 늘 거예요.'},
+    {s:'u', zh:'谢谢你的鼓励，我会努力的。', py:'Xièxie nǐ de gǔlì, wǒ huì nǔlì de.', ko:'격려 고마워요, 열심히 할게요.'},
+  ]},
+  { id:'delivery', emoji:'📦', titleZh:'寄快递', titleKo:'택배 보내기', turns:[
+    {s:'t', zh:'您好，请问您要寄什么？', py:'Nín hǎo, qǐngwèn nín yào jì shénme?', ko:'안녕하세요, 뭘 보내시나요?'},
+    {s:'u', zh:'我要寄一些书和衣服。', py:'Wǒ yào jì yìxiē shū hé yīfu.', ko:'책이랑 옷을 좀 보내려고요.'},
+    {s:'t', zh:'请问寄到哪个城市？', py:'Qǐngwèn jì dào nǎge chéngshì?', ko:'어느 도시로 보내세요?'},
+    {s:'u', zh:'寄到上海，大概几天能到？', py:'Jì dào Shànghǎi, dàgài jǐ tiān néng dào?', ko:'상하이로요, 대략 며칠 걸려요?'},
+    {s:'t', zh:'一般两三天就能到。', py:'Yìbān liǎng sān tiān jiù néng dào.', ko:'보통 2~3일이면 도착해요.'},
+    {s:'u', zh:'运费是怎么算的？', py:'Yùnfèi shì zěnme suàn de?', ko:'배송비는 어떻게 계산하나요?'},
+    {s:'t', zh:'按重量算，这个包裹十五块。', py:'Àn zhòngliàng suàn, zhège bāoguǒ shíwǔ kuài.', ko:'무게로 계산하는데, 이 소포는 15위안이에요.'},
+    {s:'u', zh:'好的，麻烦您了。', py:'Hǎo de, máfan nín le.', ko:'알겠어요, 수고해 주세요.'},
+  ]},
+];
+
+/* ============ 상태 ============ */
+let curSc = null, idx = 0;
+let showPy = true, showKo = true;
+let stream = null;
+
+const $ = id => document.getElementById(id);
+const DONE_KEY = 'hsk5_done_v1';
+const getDone = () => { try { return JSON.parse(localStorage.getItem(DONE_KEY)) || []; } catch(e){ return []; } };
+const markDone = id => { const d = getDone(); if(!d.includes(id)){ d.push(id); localStorage.setItem(DONE_KEY, JSON.stringify(d)); } };
+
+/* ============ 음성 합성(TTS) ============ */
+let zhVoice = null;
+// 여러 중국어 음성 중 가장 자연스러운 것을 고르기 위한 점수
+function rankVoice(v){
+  const s = (v.name + ' ' + v.lang).toLowerCase(); let r = 0;
+  if(/natural|neural|online/.test(s)) r += 100;                    // MS Natural(샤오샤오 등) 최상급
+  if(/google/.test(s)) r += 80;                                    // Google 만다린 매우 자연스러움
+  if(/xiaoxiao|yunxi|yunyang|xiaoyi|huihui|yaoyao|kangkang/.test(s)) r += 40;
+  if(/cn|hans|mandarin|普通话|中国|大陆/.test(s)) r += 20;
+  if(v.localService) r += 5;
+  return r;
+}
+function pickVoice(){
+  if(!('speechSynthesis' in window)){ zhVoice = null; return; }
+  const zh = speechSynthesis.getVoices()
+    .filter(v => /zh|cmn|chinese|mandarin/i.test(v.lang + ' ' + v.name));
+  zhVoice = zh.length ? zh.sort((a,b)=>rankVoice(b)-rankVoice(a))[0] : null;
+}
+if('speechSynthesis' in window){ speechSynthesis.onvoiceschanged = pickVoice; pickVoice(); }
+
+// 기기에 중국어 음성이 없을 때 사용할 온라인 자연 발음 소스(순서대로 시도)
+const ONLINE_TTS = [
+  t => 'https://api.streamelements.com/kappa/v2/speech?voice=Zhiyu&text=' + encodeURIComponent(t),
+  t => 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=zh-CN&q=' + encodeURIComponent(t),
+];
+
+let curAudio = null;
+let noticeShown = false;
+
+function stopSpeaking(){
+  try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
+  if(curAudio){ try{ curAudio.pause(); }catch(e){} curAudio.src = ''; curAudio = null; }
+  const tp = $('teacherPanel'); if(tp) tp.classList.remove('speaking');
+}
+
+// 로컬 중국어 음성으로 발음(오프라인·자연)
+function webSpeak(text, onend){
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'zh-CN'; if(zhVoice) u.voice = zhVoice; u.rate = 0.9; u.pitch = 1.0;
+  const done = ()=>{ $('teacherPanel').classList.remove('speaking'); onend && onend(); };
+  u.onend = done; u.onerror = done;
+  speechSynthesis.speak(u);
+}
+
+// 온라인 만다린 발음(소스를 순서대로 시도, 모두 실패하면 onfail)
+function onlineSpeak(text, i, onend, onfail){
+  if(i >= ONLINE_TTS.length){ onfail(); return; }
+  const a = new Audio(); curAudio = a; let handled = false;
+  const clear = ()=>{ if(curAudio === a) curAudio = null; };
+  a.onended = ()=>{ if(handled) return; handled = true; clear(); $('teacherPanel').classList.remove('speaking'); onend && onend(); };
+  a.onerror = ()=>{ if(handled) return; handled = true; clear(); onlineSpeak(text, i+1, onend, onfail); };
+  a.src = ONLINE_TTS[i](text);
+  const p = a.play();
+  if(p && p.catch) p.catch(()=>{ if(handled) return; handled = true; clear(); onlineSpeak(text, i+1, onend, onfail); });
+}
+
+function speakLine(text, onend){
+  stopSpeaking();
+  const tp = $('teacherPanel'); tp.classList.add('speaking');
+  if(zhVoice){                        // 1) 실제 중국어 음성 우선(자연·오프라인)
+    webSpeak(text, onend);
+  } else {                            // 2) 없으면 온라인 자연 발음으로 대체
+    onlineSpeak(text, 0, onend, ()=>{ // 3) 그마저 실패하면 엉뚱한 음성 대신 안내
+      tp.classList.remove('speaking');
+      showVoiceNotice();
+      onend && onend();
+    });
+  }
+}
+
+function showVoiceNotice(){
+  if(noticeShown) return; noticeShown = true;
+  const n = $('voiceNotice'); if(n) n.classList.remove('hidden');
+}
+
+/* ============ 음성 인식 ============ */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recog = null, recActive = false;
+if(SR){
+  recog = new SR();
+  recog.lang = 'zh-CN';
+  recog.interimResults = false;
+  recog.maxAlternatives = 3;
+}
+
+function normalize(s){ return (s||'').replace(/[，。？！、,\.\?!\s·:：;；]/g,''); }
+function scoreMatch(expected, got){
+  const e = [...normalize(expected)], g = [...normalize(got)];
+  if(!e.length || !g.length) return 0;
+  const used = new Array(g.length).fill(false);
+  let m = 0;
+  for(const ch of e){
+    const i = g.findIndex((c,k)=>!used[k] && c===ch);
+    if(i>=0){ used[i]=true; m++; }
+  }
+  return m / e.length;
+}
+
+/* ============ 카메라 ============ */
+async function startCamera(){
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
+    $('cameraVideo').srcObject = stream;
+    $('camOverlay').classList.add('hidden');
+  }catch(e){
+    $('camOverlay').innerHTML = '<div class="cam-emoji">🚫</div><small>카메라를 사용할 수 없어요<br>(권한을 허용해 주세요)</small>';
+  }
+}
+function stopCamera(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+
+/* ============ 홈 렌더 ============ */
+function renderHome(){
+  const done = getDone();
+  $('scenarioList').innerHTML = SCENARIOS.map(sc=>`
+    <div class="card" onclick="openScenario('${sc.id}')">
+      <div class="emoji">${sc.emoji}</div>
+      <div class="info">
+        <div class="zh">${sc.titleZh}</div>
+        <div class="ko">${sc.titleKo} · ${sc.turns.length}문장</div>
+      </div>
+      ${done.includes(sc.id) ? '<div class="done-badge">✓ 완료</div>' : ''}
+    </div>`).join('');
+}
+
+/* ============ 화면 전환 ============ */
+function showScreen(which){
+  ['home','practice','doneScreen'].forEach(s=> $(s).classList.toggle('hidden', s!==which));
+}
+function goHome(){
+  stopSpeaking();
+  if(recog && recActive){ try{ recog.stop(); }catch(e){} }
+  stopCamera();
+  curSc = null;
+  renderHome();
+  showScreen('home');
+}
+
+function openScenario(id){
+  curSc = SCENARIOS.find(s=>s.id===id);
+  idx = 0;
+  $('scTitle').textContent = curSc.emoji + ' ' + curSc.titleKo;
+  updateToggleBtns();
+  showScreen('practice');
+  renderTurn();
+}
+
+/* ============ 토글 ============ */
+function updateToggleBtns(){
+  $('tgPy').textContent = '병음 ' + (showPy?'보기':'숨김');
+  $('tgPy').classList.toggle('off', !showPy);
+  $('tgKo').textContent = '뜻 ' + (showKo?'보기':'숨김');
+  $('tgKo').classList.toggle('off', !showKo);
+}
+function togglePy(){ showPy=!showPy; updateToggleBtns(); applyVisibility(); }
+function toggleKo(){ showKo=!showKo; updateToggleBtns(); applyVisibility(); }
+function applyVisibility(){
+  $('linePy').style.display = showPy ? '' : 'none';
+  $('lineKo').style.display = showKo ? '' : 'none';
+}
+
+/* ============ 턴 렌더 ============ */
+function renderTurn(){
+  const t = curSc.turns[idx];
+  $('progFill').style.width = ((idx)/curSc.turns.length*100) + '%';
+  $('result').className = 'result';
+
+  $('lineZh').textContent = t.zh;
+  $('linePy').textContent = t.py;
+  $('lineKo').textContent = t.ko;
+  applyVisibility();
+
+  const tag = $('turnTag');
+  if(t.s==='t'){
+    tag.textContent = '👨‍🏫 선생님'; tag.className = 'turn-tag teacher';
+    $('teacherBubble').innerHTML = '<span class="zh">'+t.zh+'</span>';
+    $('ctrlHint').textContent = '선생님이 말하고 있어요…';
+    $('controls').innerHTML = `
+      <button class="btn btn-ghost" onclick="replay()">🔊 다시 듣기</button>
+      <button class="btn btn-primary" onclick="nextTurn()">다음 →</button>`;
+    // 자동 재생 후 다음(학생 차례)으로 진행
+    speakLine(t.zh, ()=>{ $('ctrlHint').textContent='이해했다면 "다음"을 누르세요'; });
+  } else {
+    tag.textContent = '🙂 나 (대답하기)'; tag.className = 'turn-tag student';
+    $('ctrlHint').textContent = recog ? '🎙️ "말하기"를 누르고 위 문장을 소리내어 읽어보세요'
+                                      : 'ℹ️ 이 브라우저는 음성인식을 지원하지 않아요. 소리내어 읽고 "완료"를 누르세요';
+    $('controls').innerHTML = recog ? `
+      <button class="btn btn-ghost" onclick="replay()">🔊 듣기</button>
+      <button class="btn btn-mic" id="micBtn" onclick="toggleMic()">🎙️ 말하기</button>
+      <button class="btn btn-ghost" onclick="nextTurn()">건너뛰기</button>`
+      : `
+      <button class="btn btn-ghost" onclick="replay()">🔊 듣기</button>
+      <button class="btn btn-primary" onclick="nextTurn()">완료 ✓</button>`;
+  }
+}
+
+function replay(){ speakLine(curSc.turns[idx].zh); }
+
+function nextTurn(){
+  stopSpeaking();
+  if(recog && recActive){ try{ recog.stop(); }catch(e){} }
+  idx++;
+  if(idx >= curSc.turns.length){ finishScenario(); return; }
+  renderTurn();
+}
+
+/* ============ 마이크 ============ */
+function toggleMic(){
+  if(!recog) return;
+  if(recActive){ try{ recog.stop(); }catch(e){} return; }
+  const expected = curSc.turns[idx].zh;
+  recActive = true;
+  $('camPanel').classList.add('rec');
+  $('teacherPanel').classList.remove('rec');
+  const btn = $('micBtn'); if(btn){ btn.classList.add('rec'); btn.textContent='● 듣는 중…'; }
+  $('ctrlHint').textContent = '지금 말하세요…';
+
+  recog.onresult = e=>{
+    let best = '', bestScore = 0;
+    for(let i=0;i<e.results[0].length;i++){
+      const alt = e.results[0][i].transcript;
+      const sc = scoreMatch(expected, alt);
+      if(sc>bestScore){ bestScore=sc; best=alt; }
+    }
+    showResult(best, bestScore);
+  };
+  recog.onerror = ev=>{
+    endMic();
+    const r = $('result');
+    r.className = 'result show bad';
+    r.innerHTML = (ev.error==='not-allowed' || ev.error==='service-not-allowed')
+      ? '🎙️ 마이크 권한이 필요해요. 브라우저 주소창의 권한을 허용해 주세요.'
+      : '음성을 인식하지 못했어요. 다시 시도해 보세요.';
+  };
+  recog.onend = ()=>{ endMic(); };
+  try{ recog.start(); }catch(e){ endMic(); }
+}
+
+function endMic(){
+  recActive = false;
+  $('camPanel').classList.remove('rec');
+  const btn = $('micBtn'); if(btn){ btn.classList.remove('rec'); btn.textContent='🎙️ 다시 말하기'; }
+}
+
+function showResult(heard, score){
+  const r = $('result');
+  r.classList.add('show');
+  const pct = Math.round(score*100);
+  if(score >= 0.6){
+    r.className = 'result show good';
+    r.innerHTML = `✅ 아주 좋아요! (일치율 ${pct}%)<div class="heard">인식된 말: ${heard||'—'}</div>`;
+    $('ctrlHint').textContent = '잘했어요! "건너뛰기"로 대화를 이어가세요';
+    setTimeout(()=>{ if(idx<curSc.turns.length && curSc.turns[idx].s==='u') nextTurn(); }, 1400);
+  } else if(score >= 0.3){
+    r.className = 'result show soso';
+    r.innerHTML = `🟡 거의 맞았어요 (일치율 ${pct}%). 다시 한 번 또박또박!<div class="heard">인식된 말: ${heard||'—'}</div>`;
+  } else {
+    r.className = 'result show bad';
+    r.innerHTML = `🔴 다시 도전해 볼까요? (일치율 ${pct}%)<div class="heard">인식된 말: ${heard||'—'}</div>`;
+  }
+}
+
+/* ============ 완료 ============ */
+function finishScenario(){
+  stopSpeaking();
+  markDone(curSc.id);
+  $('progFill').style.width = '100%';
+  $('doneTitle').textContent = curSc.titleZh + ' 완료!';
+  $('doneSub').textContent = '「' + curSc.titleKo + '」 회화를 끝까지 연습했어요. 👏';
+  stopCamera();
+  showScreen('doneScreen');
+}
+
+/* ============ 시작 ============ */
+renderHome();
+</script>
+</body>
+</html>
