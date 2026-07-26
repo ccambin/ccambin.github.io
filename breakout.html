@@ -67,7 +67,7 @@
     <div class="overlay" id="startOverlay">
       <div class="panel">
         <h1>🧱 벽돌깨기</h1>
-        <p class="sub">패들을 움직여 공으로 벽돌을 모두 깨세요!</p>
+        <p class="sub">패들을 움직여 공으로 벽돌을 모두 깨세요!<br>10개 스테이지마다 새로운 배치가 나와요.<br>떨어지는 아이템: <span style="color:#2ecc71;">＋길어짐</span> <span style="color:#E24B4A;">－짧아짐</span> <span style="color:#F1C40F;">▲총</span></p>
         <div class="pills" id="diffPills">
           <button class="pill" data-diff="easy">쉬움</button>
           <button class="pill active" data-diff="normal">보통</button>
@@ -115,13 +115,41 @@
     var SPEED_STEP = 24;   // 스테이지마다 공 속도 +24
     var ROWS_CAP = 8;
 
+    // 스테이지별 벽돌 배치 패턴 (r=행, c=열, rows=총행, cols=총열) → 벽돌 존재 여부
+    var STAGE_PATTERNS = [
+      function(r, c, rows, cols) { return true; },                                              // 1 가득
+      function(r, c, rows, cols) { return (r + c) % 2 === 0; },                                  // 2 체커보드
+      function(r, c, rows, cols) { return c % 2 === 0; },                                        // 3 세로 줄무늬
+      function(r, c, rows, cols) { return Math.abs(c - (cols - 1) / 2) <= r; },                  // 4 피라미드
+      function(r, c, rows, cols) { return Math.abs(c - (cols - 1) / 2) <= (rows - 1 - r); },     // 5 역피라미드
+      function(r, c, rows, cols) { return r === 0 || r === rows - 1 || c === 0 || c === cols - 1; }, // 6 액자
+      function(r, c, rows, cols) { return Math.abs(c - 3) + Math.abs(r - Math.floor((rows - 1) / 2)) <= 3; }, // 7 다이아몬드
+      function(r, c, rows, cols) { return c !== Math.floor(cols / 2); },                         // 8 가운데 통로
+      function(r, c, rows, cols) { return (r + c) % 3 !== 0; },                                  // 9 대각선 틈
+      function(r, c, rows, cols) { return true; }                                               // 10 보스(가득+전부 강화)
+    ];
+
+    // 아이템
+    var ITEM_DROP_CHANCE = 0.2;
+    var ITEM_FALL = 140;
+    var EXPAND_S = 8, SHRINK_S = 6, GUN_S = 8;
+    var BULLET_SPEED = 520, FIRE_INTERVAL = 0.35;
+    var ITEM_DEFS = {
+      expand: {color: '#2ecc71', label: '＋', text: '판 길어짐!'},
+      shrink: {color: '#E24B4A', label: '－', text: '판 짧아짐!'},
+      gun:    {color: '#F1C40F', label: '▲', text: '총 발사!'}
+    };
+    var ITEM_KEYS = ['expand', 'shrink', 'gun'];
+
     var G = {
       state: 'start', diff: 'normal',
       score: 0, balls: 0, elapsed: 0, stage: 1,
       bricks: [], totalBricks: 0, brokenBricks: 0,
-      paddleX: 0, paddleW: 0,
+      paddleX: 0, paddleW: 0, basePaddleW: 0,
       ball: {x: 0, y: 0, vx: 0, vy: 0, r: 7, stuck: true},
-      speed: 380, saved: false, particles: [], stageTimer: null
+      speed: 380, saved: false, particles: [], stageTimer: null,
+      items: [], bullets: [], floats: [],
+      expandUntil: 0, shrinkUntil: 0, gunUntil: 0, fireTimer: 0
     };
     window.G = G;
 
@@ -193,12 +221,15 @@
       G.bricks = [];
       // 스테이지가 오를수록 줄 수 증가(최대 ROWS_CAP), 상단 일부 줄은 강화벽돌(2회 타격)
       var rows = Math.min(ROWS_CAP, cfg.rows + Math.floor((G.stage - 1) / 2));
-      var toughRows = G.stage <= 2 ? 0 : Math.min(rows, Math.floor((G.stage - 1) / 2));
+      var boss = (G.stage === MAX_STAGE);
+      var toughRows = boss ? rows : (G.stage <= 2 ? 0 : Math.min(rows, Math.floor((G.stage - 1) / 2)));
+      var pattern = STAGE_PATTERNS[Math.min(STAGE_PATTERNS.length - 1, G.stage - 1)];
       var usableW = W - SIDE_PAD * 2 - BRICK_GAP * (COLS - 1);
       var bw = usableW / COLS;
       var bh = 22;
       for (var r = 0; r < rows; r++) {
         for (var c = 0; c < COLS; c++) {
+          if (!pattern(r, c, rows, COLS)) continue;   // 패턴에 없는 칸은 비움
           var hp = (r < toughRows) ? 2 : 1;
           G.bricks.push({
             x: SIDE_PAD + c * (bw + BRICK_GAP),
@@ -232,6 +263,16 @@
       G.ball.vy = Math.sin(angle) * G.speed;
     }
 
+    function clearItemState() {
+      G.items = [];
+      G.bullets = [];
+      G.floats = [];
+      G.expandUntil = 0;
+      G.shrinkUntil = 0;
+      G.gunUntil = 0;
+      G.fireTimer = 0;
+    }
+
     function startGame() {
       var cfg = DIFFS[G.diff];
       G.score = 0;
@@ -239,10 +280,12 @@
       G.elapsed = 0;
       G.stage = 1;
       G.speed = cfg.speed;
-      G.paddleW = W * cfg.paddle;
+      G.basePaddleW = W * cfg.paddle;
+      G.paddleW = G.basePaddleW;
       G.paddleX = W / 2;
       G.particles = [];
       G.saved = false;
+      clearItemState();
       clearTimeout(G.stageTimer);
       buildBricks();
       resetBall();
@@ -266,6 +309,8 @@
     function nextStage() {
       G.stage++;
       G.speed += SPEED_STEP;
+      G.paddleW = G.basePaddleW;
+      clearItemState();
       buildBricks();
       resetBall();
       setState('playing');
@@ -295,6 +340,74 @@
           vy: (Math.random() - 0.5) * 160,
           life: 0.4, color: color
         });
+      }
+    }
+
+    function addFloat(text, x, y) {
+      G.floats.push({text: text, x: x, y: y, alpha: 1});
+    }
+
+    // 벽돌이 깨질 때 확률적으로 아이템 낙하
+    function maybeDropItem(x, y) {
+      if (Math.random() < ITEM_DROP_CHANCE) {
+        var type = ITEM_KEYS[Math.floor(Math.random() * ITEM_KEYS.length)];
+        G.items.push({x: x, y: y, type: type});
+      }
+    }
+
+    function applyItemEffect(type) {
+      if (type === 'expand') G.expandUntil = G.elapsed + EXPAND_S;
+      else if (type === 'shrink') G.shrinkUntil = G.elapsed + SHRINK_S;
+      else if (type === 'gun') { G.gunUntil = G.elapsed + GUN_S; G.fireTimer = 0; }
+      addFloat(ITEM_DEFS[type].text, G.paddleX, paddleTop() - 16);
+    }
+
+    function updateItems(dt) {
+      var pt = paddleTop(), half = G.paddleW / 2;
+      for (var i = G.items.length - 1; i >= 0; i--) {
+        var it = G.items[i];
+        it.y += ITEM_FALL * dt;
+        if (it.y + 8 >= pt && it.y - 8 <= pt + PADDLE_H &&
+            it.x >= G.paddleX - half - 11 && it.x <= G.paddleX + half + 11) {
+          applyItemEffect(it.type);
+          G.items.splice(i, 1);
+        } else if (it.y - 8 > H) {
+          G.items.splice(i, 1);
+        }
+      }
+    }
+
+    function fireBullets() {
+      var pt = paddleTop();
+      G.bullets.push({x: G.paddleX - G.paddleW / 2 + 6, y: pt});
+      G.bullets.push({x: G.paddleX + G.paddleW / 2 - 6, y: pt});
+    }
+
+    function updateBullets(dt) {
+      for (var i = G.bullets.length - 1; i >= 0; i--) {
+        var bu = G.bullets[i];
+        bu.y -= BULLET_SPEED * dt;
+        if (bu.y < 0) { G.bullets.splice(i, 1); continue; }
+        for (var j = 0; j < G.bricks.length; j++) {
+          var br = G.bricks[j];
+          if (!br.alive) continue;
+          if (bu.x >= br.x && bu.x <= br.x + br.w && bu.y >= br.y && bu.y <= br.y + br.h) {
+            br.hp--;
+            spawnParticles(br.x + br.w / 2, br.y + br.h / 2, br.color);
+            if (br.hp <= 0) { br.alive = false; G.brokenBricks++; G.score += br.points; }
+            else { G.score += 5; }
+            G.bullets.splice(i, 1);
+            break;
+          }
+        }
+      }
+    }
+
+    function updateFloats(dt) {
+      for (var i = G.floats.length - 1; i >= 0; i--) {
+        var f = G.floats[i];
+        f.y -= 30 * dt; f.alpha -= 0.7 * dt;
+        if (f.alpha <= 0) G.floats.splice(i, 1);
       }
     }
 
@@ -328,6 +441,7 @@
             br.alive = false;
             G.brokenBricks++;
             G.score += br.points;
+            maybeDropItem(br.x + br.w / 2, br.y + br.h / 2);
           } else {                    // 강화벽돌 1차 타격
             G.score += 5;
           }
@@ -344,6 +458,22 @@
       if (G.state !== 'playing') return;
       G.elapsed += dt;
       var b = G.ball;
+
+      // 아이템 효과로 패들 폭 재계산 (확대/축소는 일정 시간)
+      var pw = G.basePaddleW;
+      if (G.elapsed < G.expandUntil) pw *= 1.6;
+      if (G.elapsed < G.shrinkUntil) pw *= 0.6;
+      G.paddleW = Math.max(30, pw);
+      G.paddleX = Math.max(G.paddleW / 2 + 3, Math.min(W - G.paddleW / 2 - 3, G.paddleX));
+
+      // 총 아이템: 일정 간격 자동 발사
+      if (G.elapsed < G.gunUntil) {
+        G.fireTimer += dt;
+        if (G.fireTimer >= FIRE_INTERVAL) { G.fireTimer = 0; fireBullets(); }
+      }
+      updateItems(dt);
+      updateBullets(dt);
+      updateFloats(dt);
 
       if (b.stuck) {
         b.x = G.paddleX;
@@ -420,11 +550,39 @@
         ctx.globalAlpha = 1;
       });
 
-      if (G.state === 'playing' || G.state === 'finished') {
-        // 패들
-        ctx.fillStyle = '#E6F1FB';
-        roundRect(G.paddleX - G.paddleW / 2, paddleTop(), G.paddleW, PADDLE_H, 6);
+      // 낙하 아이템
+      G.items.forEach(function(it) {
+        var d = ITEM_DEFS[it.type];
+        ctx.fillStyle = d.color;
+        roundRect(it.x - 11, it.y - 8, 22, 16, 4);
         ctx.fill();
+        ctx.fillStyle = '#1b1b2b';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(d.label, it.x, it.y + 1);
+      });
+      ctx.textBaseline = 'alphabetic';
+
+      // 총알
+      ctx.fillStyle = '#F1C40F';
+      G.bullets.forEach(function(bu) { ctx.fillRect(bu.x - 1.5, bu.y - 8, 3, 10); });
+
+      if (G.state === 'playing' || G.state === 'finished') {
+        var pt = paddleTop();
+        // 패들 (아이템 효과에 따라 색상 변화)
+        var pc = '#E6F1FB';
+        if (G.elapsed < G.shrinkUntil) pc = '#F0997B';
+        if (G.elapsed < G.expandUntil) pc = '#97C459';
+        ctx.fillStyle = pc;
+        roundRect(G.paddleX - G.paddleW / 2, pt, G.paddleW, PADDLE_H, 6);
+        ctx.fill();
+        // 총 아이템 활성 시 총구 2개
+        if (G.state === 'playing' && G.elapsed < G.gunUntil) {
+          ctx.fillStyle = '#F1C40F';
+          ctx.fillRect(G.paddleX - G.paddleW / 2 + 4, pt - 6, 4, 6);
+          ctx.fillRect(G.paddleX + G.paddleW / 2 - 8, pt - 6, 4, 6);
+        }
 
         // 공
         ctx.fillStyle = '#9FE1CB';
@@ -432,12 +590,22 @@
         ctx.arc(G.ball.x, G.ball.y, G.ball.r, 0, Math.PI * 2);
         ctx.fill();
 
+        // 아이템 획득 문구
+        G.floats.forEach(function(f) {
+          ctx.globalAlpha = Math.max(0, f.alpha);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold 14px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(f.text, f.x, f.y);
+          ctx.globalAlpha = 1;
+        });
+
         // 발사 대기 안내
         if (G.state === 'playing' && G.ball.stuck) {
           ctx.fillStyle = 'rgba(255,255,255,0.85)';
           ctx.font = '13px sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText('터치 또는 스페이스로 발사', W / 2, paddleTop() - 24);
+          ctx.fillText('터치 또는 스페이스로 발사', W / 2, pt - 24);
         }
       }
     }
