@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>수학 퀴즈</title>
+  <style>
+    html, body {height: 100%; margin: 0;}
+    body {font-family: 'Inter', 'Malgun Gothic', sans-serif; background: linear-gradient(135deg, #eaf3ff, #f3e9ff); display: flex; align-items: center; justify-content: center; overflow: hidden; color: #2c3e50;}
+    #stage {position: relative; width: min(430px, 100vw); height: 100dvh; background: #fff; overflow: hidden; display: flex; flex-direction: column;}
+    @media (min-width: 450px) {
+      #stage {height: min(92dvh, 820px); border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);}
+    }
+    .view {position: absolute; inset: 0; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;}
+    .view.hidden {display: none;}
+
+    /* 시작 화면 */
+    #startView {align-items: center; justify-content: center; text-align: center;}
+    #startView .logo {font-size: 3rem;}
+    #startView h1 {font-size: 1.6rem; margin: 8px 0 2px;}
+    #startView p {color: #7f8c8d; font-size: 0.95rem; margin: 0 0 24px;}
+    .grade-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 320px;}
+    .grade-btn {border: none; border-radius: 16px; color: #fff; font-size: 1.2rem; font-weight: 700; padding: 22px 0; cursor: pointer; font-family: inherit;}
+    .grade-btn:active {transform: scale(0.96);}
+    .home {display: inline-block; margin-top: 22px; color: #95a5a6; font-size: 0.85rem; text-decoration: none;}
+
+    /* 퀴즈 화면 */
+    #quizView {padding: 16px;}
+    .quiz-top {display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; color: #7f8c8d; margin-bottom: 8px;}
+    .quiz-top .score {font-weight: 700; color: #f39c12;}
+    .timer-wrap {height: 10px; background: #eee; border-radius: 5px; overflow: hidden; margin-bottom: 4px;}
+    #timerFill {height: 100%; width: 100%; background: #1dd1a1; border-radius: 5px;}
+    #timerText {text-align: center; font-size: 0.85rem; color: #e67e22; margin-bottom: 16px; min-height: 1.1em;}
+    .question {flex: 0 0 auto; text-align: center; font-size: 2.4rem; font-weight: 700; margin: 18px 0 28px; min-height: 2.6rem;}
+    .choices {display: flex; flex-direction: column; gap: 14px;}
+    .choice {border: 3px solid #54a0ff; background: #fff; color: #2c3e50; border-radius: 16px; padding: 18px; text-align: center; font-size: 1.5rem; font-weight: 700; cursor: pointer; font-family: inherit;}
+    .choice:active {background: #eaf3ff;}
+    .choices.locked .choice {pointer-events: none;}
+    .choice.correct {border-color: #1dd1a1; background: #e4f9f2; color: #0f6e56;}
+    .choice.wrong {border-color: #ff6b6b; background: #ffeaea; color: #c0392b;}
+
+    /* 피드백 오버레이 */
+    #feedback {position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; z-index: 5;}
+    #feedback.show {display: flex;}
+    #feedback.correct {background: rgba(29,209,161,0.16);}
+    #feedback.wrong {background: rgba(255,107,107,0.14);}
+    #feedback .emoji {font-size: 3.2rem;}
+    #feedback .msg {font-size: 1.6rem; font-weight: 800;}
+    #feedback.correct .msg {color: #0f6e56;}
+    #feedback.wrong .msg {color: #c0392b;}
+    #feedback .sub {font-size: 1.05rem; font-weight: 700;}
+    #feedback.correct .sub {color: #1dd1a1;}
+    #feedback.wrong .sub {color: #e67e22;}
+
+    /* 결과 화면 */
+    #resultView {align-items: center; justify-content: center; text-align: center;}
+    #resultView .emoji {font-size: 3.4rem;}
+    #resultView .meta {color: #7f8c8d; font-size: 0.9rem; margin-top: 8px;}
+    #resultView .score-big {font-size: 3.6rem; font-weight: 800; margin: 6px 0;}
+    #resultView .score-big span {font-size: 1.3rem; color: #95a5a6;}
+    #resultView .msg {font-size: 1.2rem; font-weight: 700; color: #1dd1a1; margin-bottom: 26px;}
+    .btn {border: none; border-radius: 16px; padding: 16px; font-size: 1.1rem; font-weight: 700; cursor: pointer; font-family: inherit; width: 100%; max-width: 300px;}
+    .btn.primary {background: #54a0ff; color: #fff; margin-bottom: 12px;}
+    .btn.ghost {background: #fff; color: #2c3e50; border: 2px solid #ddd;}
+    .btn:active {transform: scale(0.97);}
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <!-- 시작 -->
+    <section id="startView" class="view">
+      <div class="logo">🧮</div>
+      <h1>수학 퀴즈</h1>
+      <p>학년을 골라요</p>
+      <div class="grade-grid" id="gradeGrid"></div>
+      <a class="home" href="index.html">← 홈으로</a>
+    </section>
+
+    <!-- 퀴즈 -->
+    <section id="quizView" class="view hidden">
+      <div class="quiz-top">
+        <span id="progress">1 / 20</span>
+        <span class="score">⭐ <span id="score">0</span>점</span>
+      </div>
+      <div class="timer-wrap"><div id="timerFill"></div></div>
+      <div id="timerText">⏱ 10초</div>
+      <div class="question" id="question">? + ? = ?</div>
+      <div class="choices" id="choices"></div>
+      <div id="feedback"></div>
+    </section>
+
+    <!-- 결과 -->
+    <section id="resultView" class="view hidden">
+      <div class="emoji" id="resultEmoji">🏆</div>
+      <div class="meta" id="resultMeta">2학년 · 20문제 완료</div>
+      <div class="score-big"><span id="resultScore">0</span><span>/100</span></div>
+      <div class="msg" id="resultMsg">잘했어요!</div>
+      <button class="btn primary" id="retryBtn">다시 하기</button>
+      <button class="btn ghost" id="changeBtn">학년 선택으로</button>
+    </section>
+  </div>
+
+  <script>
+    var TOTAL = 20, POINT = 5, TIME = 10;
+    var GRADE_COLORS = ['#ff6b6b', '#ff9f43', '#f6c744', '#1dd1a1', '#54a0ff', '#a55eea'];
+
+    function rnd(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+    function fmtDec(t) { return (t / 10).toFixed(1); }
+
+    // 정답 근처의 서로 다른 오답 2개(정수)
+    function wrongsInt(ans, spread, lo) {
+      lo = (lo === undefined) ? 0 : lo;
+      var used = {}; used[ans] = 1; var out = [], guard = 0;
+      while (out.length < 2 && guard < 120) {
+        guard++;
+        var off = rnd(1, spread) * (Math.random() < 0.5 ? -1 : 1);
+        var w = ans + off;
+        if (w >= lo && !used[w]) { used[w] = 1; out.push(w); }
+      }
+      var k = 1;
+      while (out.length < 2) { var w = ans + k; if (w >= lo && !used[w]) { used[w] = 1; out.push(w); } k++; if (k > 300) break; }
+      return out;
+    }
+
+    function num(q, ans, spread) {
+      return {q: q, correct: String(ans), wrongs: wrongsInt(ans, spread, 0).map(String)};
+    }
+    function dec(q, tenths, spreadT) {
+      return {q: q, correct: fmtDec(tenths), wrongs: wrongsInt(tenths, spreadT, 1).map(fmtDec)};
+    }
+    function frac(q, ns, d) {
+      var used = {}; used[ns] = 1; var out = [], guard = 0;
+      while (out.length < 2 && guard < 100) {
+        guard++;
+        var off = rnd(1, 2) * (Math.random() < 0.5 ? -1 : 1);
+        var w = ns + off;
+        if (w >= 1 && w <= d && !used[w]) { used[w] = 1; out.push(w); }
+      }
+      var k = 1;
+      while (out.length < 2) { var w = ((ns + k - 1) % d) + 1; if (!used[w]) { used[w] = 1; out.push(w); } k++; if (k > 60) break; }
+      return {q: q, correct: ns + '/' + d, wrongs: out.map(function(x) { return x + '/' + d; })};
+    }
+    function fracUnit(q, d) {
+      var used = {}; used[d] = 1; var out = [], guard = 0;
+      while (out.length < 2 && guard < 100) {
+        guard++;
+        var off = rnd(1, 3) * (Math.random() < 0.5 ? -1 : 1);
+        var w = d + off;
+        if (w >= 2 && !used[w]) { used[w] = 1; out.push(w); }
+      }
+      var k = 2;
+      while (out.length < 2) { var w = d + k; if (!used[w]) { used[w] = 1; out.push(w); } k++; if (k > 60) break; }
+      return {q: q, correct: '1/' + d, wrongs: out.map(function(x) { return '1/' + x; })};
+    }
+
+    // 학년별 문제 생성기
+    var GENS = [
+      function g1() { // 1학년: 20 이하 덧셈·뺄셈
+        if (Math.random() < 0.5) { var a = rnd(1, 9), b = rnd(1, 9); return num(a + ' + ' + b, a + b, 3); }
+        var x = rnd(5, 18), y = rnd(1, x); return num(x + ' − ' + y, x - y, 3);
+      },
+      function g2() { // 2학년: 두 자리 덧셈·뺄셈, 2·5단
+        var t = rnd(0, 2);
+        if (t === 0) { var a = rnd(11, 59), b = rnd(11, 40); return num(a + ' + ' + b, a + b, 5); }
+        if (t === 1) { var x = rnd(30, 99), y = rnd(11, x - 1); return num(x + ' − ' + y, x - y, 5); }
+        var m = (Math.random() < 0.5 ? 2 : 5), n = rnd(2, 9); return num(m + ' × ' + n, m * n, 4);
+      },
+      function g3() { // 3학년: 구구단, 나눗셈(나머지 없음), 세 자리 덧뺄
+        var t = rnd(0, 3);
+        if (t === 0) { var a = rnd(2, 9), b = rnd(2, 9); return num(a + ' × ' + b, a * b, 5); }
+        if (t === 1) { var b = rnd(2, 9), q = rnd(2, 9); return num((b * q) + ' ÷ ' + b, q, 3); }
+        if (t === 2) { var a = rnd(100, 500), b = rnd(100, 400); return num(a + ' + ' + b, a + b, 15); }
+        var x = rnd(200, 999), y = rnd(50, x - 1); return num(x + ' − ' + y, x - y, 15);
+      },
+      function g4() { // 4학년: (두세 자리)×(한 자리), 나눗셈
+        var t = rnd(0, 2);
+        if (t === 0) { var a = rnd(11, 99), b = rnd(2, 9); return num(a + ' × ' + b, a * b, 12); }
+        if (t === 1) { var a = rnd(101, 499), b = rnd(2, 9); return num(a + ' × ' + b, a * b, 40); }
+        var b2 = rnd(3, 9), q = rnd(11, 50); return num((b2 * q) + ' ÷ ' + b2, q, 6);
+      },
+      function g5() { // 5학년: 소수·분수 덧뺄, 혼합계산
+        var t = rnd(0, 3);
+        if (t === 0) { var a = rnd(11, 89), b = rnd(11, 89); return dec(fmtDec(a) + ' + ' + fmtDec(b), a + b, 6); }
+        if (t === 1) { var x = rnd(30, 99), y = rnd(11, x - 1); return dec(fmtDec(x) + ' − ' + fmtDec(y), x - y, 6); }
+        if (t === 2) { var d = rnd(4, 9), n1 = rnd(1, d - 2), n2 = rnd(1, d - n1 - 1); return frac(n1 + '/' + d + ' + ' + n2 + '/' + d, n1 + n2, d); }
+        var a2 = rnd(2, 9), b2 = rnd(2, 9), c = rnd(2, 5), ans = a2 + b2 * c;
+        var cand = [(a2 + b2) * c, a2 + b2 + c, a2 * b2 * c], used = {}, wr = []; used[ans] = 1;
+        cand.forEach(function(v) { if (wr.length < 2 && v >= 0 && !used[v]) { used[v] = 1; wr.push(v); } });
+        var k = 1; while (wr.length < 2) { var v = ans + k; if (!used[v]) { used[v] = 1; wr.push(v); } k++; }
+        return {q: a2 + ' + ' + b2 + ' × ' + c, correct: String(ans), wrongs: wr.map(String)};
+      },
+      function g6() { // 6학년: 백분율, 소수 곱셈, 분수 곱셈
+        var t = rnd(0, 2);
+        if (t === 0) { var X = [100, 200, 300, 400, 500][rnd(0, 4)], P = [10, 20, 25, 50][rnd(0, 3)], ans = (X / 100) * P; return num(X + '의 ' + P + '%', ans, Math.max(3, Math.round(ans * 0.3))); }
+        if (t === 1) { var a = rnd(11, 49), b = rnd(2, 9), prod = a * b; return dec(fmtDec(a) + ' × ' + b, prod, Math.max(6, Math.round(prod * 0.12))); }
+        var x = rnd(2, 5), y = rnd(2, 5); return fracUnit('1/' + x + ' × 1/' + y, x * y);
+      }
+    ];
+
+    // ---------- 상태 ----------
+    var state = 'start', grade = 1, qIndex = 0, score = 0;
+    var current = null, answered = false;
+    var timeLeft = TIME, lastT = 0, rafId = null;
+    var recent = []; // 정답 위치 연속 방지
+
+    var startView = document.getElementById('startView');
+    var quizView = document.getElementById('quizView');
+    var resultView = document.getElementById('resultView');
+    function showView(v) {
+      [startView, quizView, resultView].forEach(function(x) { x.classList.add('hidden'); });
+      v.classList.remove('hidden');
+    }
+
+    // 학년 버튼
+    var gradeGrid = document.getElementById('gradeGrid');
+    for (var g = 1; g <= 6; g++) {
+      (function(gg) {
+        var b = document.createElement('button');
+        b.className = 'grade-btn';
+        b.style.background = GRADE_COLORS[gg - 1];
+        if (gg === 3) b.style.color = '#5a4a00';
+        b.textContent = gg + '학년';
+        b.addEventListener('click', function() { startGame(gg); });
+        gradeGrid.appendChild(b);
+      })(g);
+    }
+
+    function pickCorrectIndex() {
+      var idx;
+      do { idx = rnd(0, 2); }
+      while (recent.length >= 2 && recent[recent.length - 1] === idx && recent[recent.length - 2] === idx);
+      recent.push(idx);
+      return idx;
+    }
+
+    function buildQuestion() {
+      var item = GENS[grade - 1]();
+      var ci = pickCorrectIndex();
+      var choices = [], wi = 0;
+      for (var i = 0; i < 3; i++) choices[i] = (i === ci) ? item.correct : item.wrongs[wi++];
+      current = {q: item.q, choices: choices, correctIndex: ci, correct: item.correct};
+      return current;
+    }
+
+    // ---------- 게임 진행 ----------
+    function startGame(gg) {
+      grade = gg; qIndex = 0; score = 0; recent = [];
+      document.getElementById('score').textContent = 0;
+      showView(quizView);
+      state = 'quiz';
+      renderQuestion();
+      lastT = performance.now();
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(loop);
+    }
+    window.startGame = startGame;
+
+    var questionEl = document.getElementById('question');
+    var choicesEl = document.getElementById('choices');
+    var feedbackEl = document.getElementById('feedback');
+    var timerFill = document.getElementById('timerFill');
+    var timerText = document.getElementById('timerText');
+
+    function renderQuestion() {
+      buildQuestion();
+      answered = false;
+      timeLeft = TIME;
+      document.getElementById('progress').textContent = (qIndex + 1) + ' / ' + TOTAL;
+      questionEl.textContent = current.q + ' = ?';
+      feedbackEl.className = '';
+      feedbackEl.innerHTML = '';
+      choicesEl.className = 'choices';
+      choicesEl.innerHTML = '';
+      current.choices.forEach(function(c, i) {
+        var d = document.createElement('div');
+        d.className = 'choice';
+        d.textContent = c;
+        d.addEventListener('click', function() { choose(i); });
+        choicesEl.appendChild(d);
+      });
+      renderTimer();
+    }
+
+    function renderTimer() {
+      var ratio = Math.max(0, timeLeft / TIME);
+      timerFill.style.width = (ratio * 100) + '%';
+      timerFill.style.background = ratio > 0.5 ? '#1dd1a1' : (ratio > 0.25 ? '#ff9f43' : '#ff6b6b');
+      timerText.textContent = '⏱ ' + Math.ceil(Math.max(0, timeLeft)) + '초';
+    }
+
+    function loop(now) {
+      if (state !== 'quiz') return;
+      if (!answered) {
+        var dt = Math.min(0.1, (now - lastT) / 1000); lastT = now; // 탭 전환 후 급점프 방지
+        timeLeft -= dt;
+        if (timeLeft <= 0) { timeLeft = 0; renderTimer(); onTimeout(); }
+        else renderTimer();
+      } else { lastT = now; }
+      rafId = requestAnimationFrame(loop);
+    }
+
+    function lockChoices() {
+      choicesEl.classList.add('locked');
+      var els = choicesEl.children;
+      els[current.correctIndex].classList.add('correct');
+      return els;
+    }
+
+    function choose(i) {
+      if (answered) return;
+      answered = true;
+      var els = lockChoices();
+      var correct = (i === current.correctIndex);
+      if (correct) {
+        score += POINT;
+        document.getElementById('score').textContent = score;
+        showFeedback(true);
+        setTimeout(nextQuestion, 1100);
+      } else {
+        els[i].classList.add('wrong');
+        showFeedback(false);
+        setTimeout(nextQuestion, 1600);
+      }
+    }
+
+    function onTimeout() {
+      if (answered) return;
+      answered = true;
+      lockChoices();
+      showFeedback(false, true);
+      setTimeout(nextQuestion, 1600);
+    }
+
+    function showFeedback(correct, timeout) {
+      if (correct) {
+        feedbackEl.className = 'correct show';
+        feedbackEl.innerHTML = '<div class="emoji">🎉</div><div class="msg">Congratulations!</div><div class="sub">+' + POINT + '점</div>';
+      } else {
+        feedbackEl.className = 'wrong show';
+        feedbackEl.innerHTML = '<div class="emoji">' + (timeout ? '⏰' : '😅') + '</div><div class="msg">' +
+          (timeout ? '시간 초과!' : '아쉬워요!') + '</div><div class="sub">정답: ' + current.correct + '</div>';
+      }
+    }
+
+    function nextQuestion() {
+      qIndex++;
+      if (qIndex >= TOTAL) { showResult(); return; }
+      renderQuestion();
+      lastT = performance.now();
+    }
+
+    function showResult() {
+      state = 'result';
+      if (rafId) cancelAnimationFrame(rafId);
+      var emoji = '🔥', msg = '다시 도전해봐요!';
+      if (score === 100) { emoji = '🏆'; msg = '만점이에요! 최고!'; }
+      else if (score >= 80) { emoji = '😄'; msg = '잘했어요!'; }
+      else if (score >= 60) { emoji = '👍'; msg = '좋아요!'; }
+      else if (score >= 40) { emoji = '💪'; msg = '조금만 더!'; }
+      document.getElementById('resultEmoji').textContent = emoji;
+      document.getElementById('resultMeta').textContent = grade + '학년 · ' + TOTAL + '문제 완료';
+      document.getElementById('resultScore').textContent = score;
+      document.getElementById('resultMsg').textContent = msg;
+      showView(resultView);
+    }
+
+    document.getElementById('retryBtn').addEventListener('click', function() { startGame(grade); });
+    document.getElementById('changeBtn').addEventListener('click', function() {
+      state = 'start';
+      if (rafId) cancelAnimationFrame(rafId);
+      showView(startView);
+    });
+
+    // 테스트용 노출
+    window.__math = {
+      GENS: GENS, get current() { return current; }, buildQuestion: buildQuestion,
+      setGrade: function(g) { grade = g; }, choose: choose, get score() { return score; },
+      get state() { return state; }, startGame: startGame, get qIndex() { return qIndex; }
+    };
+
+    showView(startView);
+  </script>
+</body>
+</html>
