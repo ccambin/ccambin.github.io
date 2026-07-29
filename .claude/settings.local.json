@@ -69,7 +69,8 @@
       "Bash(curl -s -o /dev/null -w 'app.js:     %{http_code}\\\\n' https://infinixooan-web.github.io/space/app.js?_=__CMDSUB_OUTPUT__)",
       "Bash(curl -s -o /dev/null -w 'app.css: %{http_code}\\\\n' https://infinixooan-web.github.io/space/app.css?_=__CMDSUB_OUTPUT__)",
       "Bash(curl -s -o /dev/null -w 'app.js:  %{http_code}\\\\n' https://infinixooan-web.github.io/space/app.js?_=__CMDSUB_OUTPUT__)",
-      "Bash(curl -s https://infinixooan-web.github.io/space/app.js?_=__CMDSUB_OUTPUT__)"
+      "Bash(curl -s https://infinixooan-web.github.io/space/app.js?_=__CMDSUB_OUTPUT__)",
+      "Bash(git -c user.name=\"infinixooan-web\" -c user.email=\"1st.thanks@gmail.com\" commit -m \"메인 홈페이지에 우주 탐험대 앱 링크 카드 추가\")"
     ]
   }
 }
