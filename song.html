@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2012년 그리고 오늘</title>
+  <style>
+    * {box-sizing: border-box;}
+    body {font-family: 'Inter', 'Malgun Gothic', sans-serif; background: linear-gradient(135deg, #f0f4ff, #e0e7ff); color: #2c3e50; margin: 0; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 2rem;}
+    .card {background: rgba(255,255,255,0.9); border-radius: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 2rem; max-width: 420px; width: 100%; text-align: center;}
+    .disc {width: 150px; height: 150px; border-radius: 50%; margin: 0 auto 1.4rem; background: radial-gradient(circle at center, #fff 0 16%, #34495e 16% 100%); display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(0,0,0,0.25); animation: spin 6s linear infinite paused;}
+    .disc.playing {animation-play-state: running;}
+    .disc .hole {width: 22px; height: 22px; border-radius: 50%; background: #f0f4ff;}
+    @keyframes spin {to {transform: rotate(360deg);}}
+    h1 {font-size: 1.4rem; margin: 0 0 0.2rem;}
+    .sub {color: #7f8c8d; font-size: 0.9rem; margin: 0 0 1.6rem;}
+    audio {width: 100%; margin-bottom: 1.2rem;}
+    .home {display: inline-block; color: #7f8c8d; font-size: 0.85rem; text-decoration: none;}
+    .home:hover {color: #2c3e50;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="disc" id="disc"><div class="hole"></div></div>
+    <h1>2012년 그리고 오늘</h1>
+    <p class="sub">🎵 노래 듣기</p>
+    <audio id="player" controls preload="metadata" src="2012%EB%85%84%20%EA%B7%B8%EB%A6%AC%EA%B3%A0%20%EC%98%A4%EB%8A%98.m4a"></audio>
+    <div><a class="home" href="index.html">← 홈으로</a></div>
+  </div>
+  <script>
+    var disc = document.getElementById('disc'), player = document.getElementById('player');
+    player.addEventListener('play', function() { disc.classList.add('playing'); });
+    player.addEventListener('pause', function() { disc.classList.remove('playing'); });
+    player.addEventListener('ended', function() { disc.classList.remove('playing'); });
+  </script>
+</body>
+</html>
