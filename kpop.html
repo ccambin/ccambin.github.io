@@ -157,13 +157,17 @@
   </div>
 
   <script>
+    // 2026년 9월 걸그룹 브랜드평판 상위 기준으로 갱신
     var GROUPS = [
-      {ko:"뉴진스", en:"NewJeans", color:"#5aa9ff", songs:[
-        {t:"Supernatural", v:"ZncbtRo7RXs"}, {t:"How Sweet", v:"Q3K0TOvTOno"},
-        {t:"OMG", v:"sVTy_wmn5SU"}, {t:"Super Shy", v:"ArmDp-zijuc"},
-        {t:"ETA", v:"jOTfBlKSQYY"}, {t:"Bubble Gum", v:"ft70sAYrFyY"},
-        {t:"Cool With You", v:"zsYSSVoQnP4"}, {t:"Right Now", v:"m6pTbEz4w3o"},
-        {t:"ASAP", v:"dJdqn5v4Dkw"}
+      {ko:"리센느", en:"RESCENE", color:"#f368a0", songs:[
+        {t:"New World", v:"QNXeGm-Wkms"}, {t:"Glow Up", v:"h0xUtrb_JBc"},
+        {t:"Deja Vu", v:"ZbO9PBdFRdc"}, {t:"LOVE ATTACK", v:"9XttLI0oH0I"},
+        {t:"Bloom", v:"MC6-82GRK5I"}, {t:"Runaway", v:"rsZwrTNklos"}
+      ]},
+      {ko:"블랙핑크", en:"BLACKPINK", color:"#ff2e88", songs:[
+        {t:"How You Like That", v:"ioNng23DkIM"}, {t:"Pink Venom", v:"gQlMMD8auMs"},
+        {t:"Kill This Love", v:"2S24-y0Ij3Y"}, {t:"마지막처럼 (AS IF IT'S YOUR LAST)", v:"Amq-qlqbjYA"},
+        {t:"JUMP", v:"CgCVZdcKcqY"}
       ]},
       {ko:"아이브", en:"IVE", color:"#e84c88", songs:[
         {t:"I AM", v:"-KYXTAszltc"}, {t:"ELEVEN", v:"--FmExEAsM8"},
@@ -171,38 +175,11 @@
         {t:"BANG BANG", v:"9qkpcLK422o"}, {t:"ATTITUDE", v:"38xYeot-ciM"},
         {t:"XOXZ", v:"B1ShLiq3EVc"}
       ]},
-      {ko:"에스파", en:"aespa", color:"#8a5cff", songs:[
-        {t:"Supernova", v:"phuiiNCxRMg"}, {t:"Whiplash", v:"jWQx2f-CErU"},
-        {t:"Next Level", v:"4TWR90KJl84"}, {t:"Black Mamba", v:"i0_gM5bifeo"},
-        {t:"Armageddon", v:"nFYwcndNuOY"}, {t:"Girls", v:"dYRITmpFbJ4"},
-        {t:"Better Things", v:"gfk3QLU1x0E"}, {t:"Dirty Work", v:"M2WTUoy4y6E"}
-      ]},
-      {ko:"르세라핌", en:"LE SSERAFIM", color:"#2f7de1", songs:[
-        {t:"CRAZY", v:"n6B5gQXlB-0"}, {t:"EASY", v:"bNKXxwOQYB8"},
-        {t:"HOT", v:"r9AEGPB6qIU"}, {t:"Smart", v:"KNexS61fjus"},
-        {t:"Come Over", v:"z_uqieM8VGM"}, {t:"CELEBRATION", v:"a2grcJdfXmY"},
-        {t:"DIFFERENT", v:"HFZUAXhdnHk"}
-      ]},
-      {ko:"(여자)아이들", en:"(G)I-DLE", color:"#e0245e", songs:[
-        {t:"Queencard", v:"7HDeem-JaSY"}, {t:"Super Lady", v:"6f3RzjXPQwA"},
-        {t:"Wife", v:"baaNwRAhHBo"}, {t:"LATATA", v:"p4RIhcY7V3c"},
-        {t:"LION", v:"6oanIo_2Z4Q"}, {t:"HANN (Alone)", v:"OKNXn2qCEws"}
-      ]},
-      {ko:"블랙핑크", en:"BLACKPINK", color:"#ff2e88", songs:[
-        {t:"How You Like That", v:"ioNng23DkIM"}, {t:"Pink Venom", v:"gQlMMD8auMs"},
-        {t:"Kill This Love", v:"2S24-y0Ij3Y"}, {t:"마지막처럼 (AS IF IT'S YOUR LAST)", v:"Amq-qlqbjYA"},
-        {t:"JUMP", v:"CgCVZdcKcqY"}
-      ]},
       {ko:"트와이스", en:"TWICE", color:"#ff7fb0", songs:[
         {t:"TT", v:"e8LB3hYOa3c"}, {t:"LIKEY", v:"ERBhY35sulI"},
         {t:"SIGNAL", v:"PBaD9PqHlK4"}, {t:"KNOCK KNOCK", v:"DQxCCVuLFhQ"},
         {t:"Heart Shaker", v:"YBWHtQj0V1g"}, {t:"What is Love?", v:"Lk4WaiK-Ouo"},
         {t:"TURN IT UP", v:"upbHdcFLnhQ"}
-      ]},
-      {ko:"있지", en:"ITZY", color:"#ff5a3c", songs:[
-        {t:"Not Shy", v:"wTowEKjDGkU"}, {t:"Girls Will Be Girls", v:"h6bmy37Rmpg"},
-        {t:"GOLD", v:"eMk_0svqsnI"}, {t:"BET ON ME", v:"RmTq3cJqyCo"},
-        {t:"Imaginary Friend", v:"NrUlydECU-8"}
       ]},
       {ko:"레드벨벳", en:"Red Velvet", color:"#c0143c", songs:[
         {t:"빨간 맛 (Red Flavor)", v:"WyiIGEHQP8o"}, {t:"Peek-A-Boo", v:"6uJf2IT2Zh8"},
@@ -210,14 +187,60 @@
         {t:"Chill Kill", v:"xlyrt5eAtKI"}, {t:"Cosmic", v:"FyG21rXCxlY"},
         {t:"Automatic", v:"GRDEETwbxro"}
       ]},
+      {ko:"에스파", en:"aespa", color:"#8a5cff", songs:[
+        {t:"Supernova", v:"phuiiNCxRMg"}, {t:"Whiplash", v:"jWQx2f-CErU"},
+        {t:"Next Level", v:"4TWR90KJl84"}, {t:"Black Mamba", v:"i0_gM5bifeo"},
+        {t:"Armageddon", v:"nFYwcndNuOY"}, {t:"Girls", v:"dYRITmpFbJ4"},
+        {t:"Better Things", v:"gfk3QLU1x0E"}, {t:"Dirty Work", v:"M2WTUoy4y6E"}
+      ]},
+      {ko:"키키", en:"KiiiKiii", color:"#ff5a3c", songs:[
+        {t:"404 (New Era)", v:"zhHB4dZTChw"}, {t:"딸기게임 (Strawberry Cheesegame)", v:"OncJ5v1keww"},
+        {t:"DANCING ALONE", v:"u5wMLWs6LSs"}, {t:"BTG", v:"hnCd1RyTaOA"},
+        {t:"GROUNDWORK", v:"A2KiiNslUJ4"}, {t:"Pop Off Pop Off", v:"UsbRoaH6y-Q"}
+      ]},
+      {ko:"하츠투하츠", en:"Hearts2Hearts", color:"#16a085", songs:[
+        {t:"STYLE", v:"rB13iHnZyrU"}, {t:"RUDE!", v:"4UND5yaLO5E"},
+        {t:"Apple Pie", v:"W1vFN8w9i3M"}, {t:"Blue Moon", v:"zRm1puG10Go"},
+        {t:"Flutter", v:"yz2Vd4FzMMk"}, {t:"Lemon Tang", v:"bAZ0BJhiomE"}
+      ]},
+      {ko:"르세라핌", en:"LE SSERAFIM", color:"#2f7de1", songs:[
+        {t:"CRAZY", v:"n6B5gQXlB-0"}, {t:"EASY", v:"bNKXxwOQYB8"},
+        {t:"HOT", v:"r9AEGPB6qIU"}, {t:"Smart", v:"KNexS61fjus"},
+        {t:"Come Over", v:"z_uqieM8VGM"}, {t:"CELEBRATION", v:"a2grcJdfXmY"},
+        {t:"DIFFERENT", v:"HFZUAXhdnHk"}
+      ]},
+      {ko:"프로미스나인", en:"fromis_9", color:"#5aa9ff", songs:[
+        {t:"Stay This Way", v:"JC6budcACNE"}, {t:"DM", v:"4gXmClk8rKI"},
+        {t:"Talk & Talk", v:"BjmmvBMXbSU"}, {t:"#menow", v:"QrYIOjs7K8E"},
+        {t:"LIKE YOU BETTER", v:"r1QapH1SIAI"}, {t:"유리구두 (Glass Shoes)", v:"L_p5OQ8BAi0"}
+      ]},
       {ko:"아일릿", en:"ILLIT", color:"#ff8fb3", songs:[
         {t:"Magnetic", v:"Vk5-c_v4gMU"}, {t:"Cherish (My Love)", v:"tbDGl7jEazA"},
         {t:"It's Me", v:"bMhDJ0S0OBA"}, {t:"Sunday Morning", v:"-01oDwXKSuE"},
         {t:"NOT ME", v:"9nEp9eeGaJk"}, {t:"jellyous", v:"GkG60kISnfc"}
       ]},
+      {ko:"(여자)아이들", en:"(G)I-DLE", color:"#e0245e", songs:[
+        {t:"Queencard", v:"7HDeem-JaSY"}, {t:"Super Lady", v:"6f3RzjXPQwA"},
+        {t:"Wife", v:"baaNwRAhHBo"}, {t:"LATATA", v:"p4RIhcY7V3c"},
+        {t:"LION", v:"6oanIo_2Z4Q"}, {t:"HANN (Alone)", v:"OKNXn2qCEws"}
+      ]},
       {ko:"베이비몬스터", en:"BABYMONSTER", color:"#7d3cff", songs:[
         {t:"PSYCHO", v:"q1hRhHa6LhQ"}, {t:"Ghost", v:"uk6ct8HWLyE"},
         {t:"Really Like You", v:"XShaIZs7J7M"}, {t:"WE GO UP", v:"wlHwjkYpSr0"}
+      ]},
+      {ko:"있지", en:"ITZY", color:"#ff9f43", songs:[
+        {t:"Not Shy", v:"wTowEKjDGkU"}, {t:"Girls Will Be Girls", v:"h6bmy37Rmpg"},
+        {t:"GOLD", v:"eMk_0svqsnI"}, {t:"BET ON ME", v:"RmTq3cJqyCo"},
+        {t:"Imaginary Friend", v:"NrUlydECU-8"}
+      ]},
+      {ko:"이즈나", en:"izna", color:"#0aa3c2", songs:[
+        {t:"SIGN", v:"88GkYKvnvvI"}, {t:"BEEP", v:"GJ_B_BAUNZ8"},
+        {t:"IZNA", v:"d3mqW9wqqx0"}, {t:"Supercrush", v:"MLwKtVu5oTQ"},
+        {t:"In the Rain", v:"LZ4RZ3RkRws"}, {t:"Racecar", v:"dH0BOvmKjnU"}
+      ]},
+      {ko:"엔믹스", en:"NMIXX", color:"#6c5ce7", songs:[
+        {t:"DICE", v:"nfteb2mVLQk"}, {t:"별별별 (See that?)", v:"_Q8Jskeps9w"},
+        {t:"Heavy Serenade", v:"6Ycn9qZK09I"}
       ]}
     ];
     window.GROUPS = GROUPS;
