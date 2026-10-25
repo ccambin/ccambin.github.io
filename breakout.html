@@ -67,7 +67,7 @@
     <div class="overlay" id="startOverlay">
       <div class="panel">
         <h1>🧱 벽돌깨기</h1>
-        <p class="sub">패들을 움직여 공으로 벽돌을 모두 깨세요!<br>10개 스테이지마다 새로운 배치가 나와요.<br>떨어지는 아이템: <span style="color:#2ecc71;">＋길어짐</span> <span style="color:#E24B4A;">－짧아짐</span> <span style="color:#F1C40F;">▲총</span> <span style="color:#4fa3ff;">⚡공 속도UP</span></p>
+        <p class="sub">패들을 움직여 공으로 벽돌을 모두 깨세요!<br>10개 스테이지마다 새로운 배치가 나와요.<br>떨어지는 아이템:<br><span style="color:#2ecc71;">＋길어짐</span> <span style="color:#E24B4A;">－짧아짐</span> <span style="color:#F1C40F;">▲총</span> <span style="color:#4fa3ff;">⚡공 속도UP</span><br><span style="color:#b388ff;">●멀티볼</span> <span style="color:#ff4d6d;">♥생명+1</span> <span style="color:#ff7a1a;">🔥불꽃공</span></p>
         <div class="pills" id="diffPills">
           <button class="pill" data-diff="easy">쉬움</button>
           <button class="pill active" data-diff="normal">보통</button>
@@ -135,13 +135,19 @@
     var EXPAND_S = 8, SHRINK_S = 6, GUN_S = 8;
     var BULLET_SPEED = 520, FIRE_INTERVAL = 0.35;
     var FAST_MULT = 2;     // 번개 아이템: 공이 떨어질 때까지 2배 속도
+    var FIRE_S = 8;        // 불꽃공 지속 시간(초)
+    var MAX_EXTRA = 8;     // 멀티볼로 추가되는 공의 최대 개수
+    var MAX_LIVES = 9;
     var ITEM_DEFS = {
       expand: {color: '#2ecc71', label: '＋', text: '판 길어짐!'},
       shrink: {color: '#E24B4A', label: '－', text: '판 짧아짐!'},
       gun:    {color: '#F1C40F', label: '▲', text: '총 발사!'},
-      speed:  {color: '#2f80ed', label: '', text: '공 속도 UP!'}
+      speed:  {color: '#2f80ed', label: '', text: '공 속도 UP!'},
+      multi:  {color: '#b388ff', label: '', text: '멀티볼!'},
+      life:   {color: '#ff4d6d', label: '', text: '생명 +1!'},
+      fire:   {color: '#ff7a1a', label: '', text: '불꽃공!'}
     };
-    var ITEM_KEYS = ['expand', 'shrink', 'gun', 'speed'];
+    var ITEM_KEYS = ['expand', 'shrink', 'gun', 'speed', 'multi', 'life', 'fire'];
 
     var G = {
       state: 'start', diff: 'normal',
@@ -152,7 +158,8 @@
       speed: 380, saved: false, particles: [], stageTimer: null,
       items: [], bullets: [], floats: [],
       expandUntil: 0, shrinkUntil: 0, gunUntil: 0, fireTimer: 0,
-      fastBall: false
+      fastBall: false, fireUntil: 0,
+      extra: []   // 멀티볼로 생긴 추가 공들 (G.ball이 주 공)
     };
     window.G = G;
 
@@ -263,6 +270,33 @@
       return G.speed * (G.fastBall ? FAST_MULT : 1);
     }
 
+    function allBalls() {
+      return [G.ball].concat(G.extra);
+    }
+
+    // 날아가는 공의 방향은 유지하고 속력만 현재 값으로 맞춤
+    function rescaleBall(b) {
+      var v = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+      if (!b.stuck && v > 0) { b.vx = b.vx / v * ballSpeed(); b.vy = b.vy / v * ballSpeed(); }
+    }
+
+    // 멀티볼: 주 공(또는 패들 위)에서 좌우로 갈라지는 공 2개 추가
+    function spawnMultiball() {
+      var src = G.ball, x, y, ang;
+      if (src.stuck) { x = G.paddleX; y = paddleTop() - 10; ang = -Math.PI / 2; }
+      else { x = src.x; y = src.y; ang = Math.atan2(src.vy, src.vx); }
+      var sp = ballSpeed();
+      [-0.45, 0.45].forEach(function(d) {
+        if (G.extra.length >= MAX_EXTRA) return;
+        var vx = Math.cos(ang + d) * sp, vy = Math.sin(ang + d) * sp;
+        if (Math.abs(vy) < sp * 0.35) {   // 거의 수평으로 날아가지 않도록 보정
+          vy = (vy <= 0 ? -1 : 1) * sp * 0.35;
+          vx = (vx < 0 ? -1 : 1) * Math.sqrt(sp * sp - vy * vy);
+        }
+        G.extra.push({x: x, y: y, vx: vx, vy: vy, r: 7, stuck: false});
+      });
+    }
+
     function launchBall() {
       if (!G.ball.stuck) return;
       G.ball.stuck = false;
@@ -280,6 +314,8 @@
       G.gunUntil = 0;
       G.fireTimer = 0;
       G.fastBall = false;
+      G.fireUntil = 0;
+      G.extra = [];
     }
 
     function startGame() {
@@ -370,10 +406,11 @@
       else if (type === 'gun') { G.gunUntil = G.elapsed + GUN_S; G.fireTimer = 0; }
       else if (type === 'speed' && !G.fastBall) {
         G.fastBall = true;
-        // 이미 날아가는 공도 즉시 빨라지도록 속도 재설정
-        var b = G.ball, v = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
-        if (!b.stuck && v > 0) { b.vx = b.vx / v * ballSpeed(); b.vy = b.vy / v * ballSpeed(); }
+        allBalls().forEach(rescaleBall);   // 이미 날아가는 공들도 즉시 빨라짐
       }
+      else if (type === 'multi') spawnMultiball();
+      else if (type === 'life') G.balls = Math.min(MAX_LIVES, G.balls + 1);
+      else if (type === 'fire') G.fireUntil = G.elapsed + FIRE_S;
       addFloat(ITEM_DEFS[type].text, G.paddleX, paddleTop() - 16);
     }
 
@@ -427,8 +464,7 @@
     }
 
     // ---------- 물리 ----------
-    function reflectOffPaddle() {
-      var b = G.ball;
+    function reflectOffPaddle(b) {
       var half = G.paddleW / 2;
       if (b.vy > 0 && b.y + b.r >= paddleTop() && b.y - b.r <= paddleTop() + PADDLE_H &&
           b.x >= G.paddleX - half - b.r && b.x <= G.paddleX + half + b.r) {
@@ -441,8 +477,8 @@
       }
     }
 
-    function reflectOffBricks() {
-      var b = G.ball;
+    function reflectOffBricks(b) {
+      var fire = G.elapsed < G.fireUntil;
       for (var i = 0; i < G.bricks.length; i++) {
         var br = G.bricks[i];
         if (!br.alive) continue;
@@ -450,7 +486,7 @@
         var cy = Math.max(br.y, Math.min(b.y, br.y + br.h));
         var dx = b.x - cx, dy = b.y - cy;
         if (dx * dx + dy * dy <= b.r * b.r) {
-          br.hp--;
+          if (fire) br.hp = 0; else br.hp--;   // 불꽃공은 강화벽돌도 한 번에
           spawnParticles(br.x + br.w / 2, br.y + br.h / 2, br.color);
           if (br.hp <= 0) {          // 완전히 깨짐
             br.alive = false;
@@ -460,6 +496,7 @@
           } else {                    // 강화벽돌 1차 타격
             G.score += 5;
           }
+          if (fire) continue;        // 불꽃공: 튕기지 않고 뚫고 지나감
           // 반사 축: 침투가 작은 축으로 튕김
           var overlapX = Math.min(b.x + b.r, br.x + br.w) - Math.max(b.x - b.r, br.x);
           var overlapY = Math.min(b.y + b.r, br.y + br.h) - Math.max(b.y - b.r, br.y);
@@ -467,6 +504,25 @@
           return; // 프레임당 하나만
         }
       }
+    }
+
+    // 공 하나를 dt만큼 이동. 고속에서 벽돌을 통과(터널링)하지 않도록 잘게 나눠 처리.
+    // 바닥으로 떨어지면 true 반환.
+    function stepBall(b, dt) {
+      var dist = Math.sqrt(b.vx * b.vx + b.vy * b.vy) * dt;
+      var steps = Math.max(1, Math.ceil(dist / b.r));
+      var sdt = dt / steps;
+      for (var s = 0; s < steps; s++) {
+        b.x += b.vx * sdt;
+        b.y += b.vy * sdt;
+        if (b.x - b.r < 3) { b.x = 3 + b.r; b.vx = Math.abs(b.vx); }
+        if (b.x + b.r > W - 3) { b.x = W - 3 - b.r; b.vx = -Math.abs(b.vx); }
+        if (b.y - b.r < 0) { b.y = b.r; b.vy = Math.abs(b.vy); }
+        reflectOffBricks(b);
+        reflectOffPaddle(b);
+        if (b.y - b.r > H) return true;
+      }
+      return false;
     }
 
     function update(dt) {
@@ -490,27 +546,20 @@
       updateBullets(dt);
       updateFloats(dt);
 
+      // 멀티볼로 생긴 추가 공: 떨어지면 그 공만 사라짐
+      for (var e = G.extra.length - 1; e >= 0; e--) {
+        if (stepBall(G.extra[e], dt)) G.extra.splice(e, 1);
+      }
+
       if (b.stuck) {
         b.x = G.paddleX;
         b.y = paddleTop() - b.r - 1;
-      } else {
-        // 고속에서 벽돌을 통과(터널링)하지 않도록 이동을 잘게 나눠 처리
-        var dist = Math.sqrt(b.vx * b.vx + b.vy * b.vy) * dt;
-        var steps = Math.max(1, Math.ceil(dist / b.r));
-        var sdt = dt / steps;
-        var lost = false;
-        for (var s = 0; s < steps; s++) {
-          b.x += b.vx * sdt;
-          b.y += b.vy * sdt;
-          if (b.x - b.r < 3) { b.x = 3 + b.r; b.vx = Math.abs(b.vx); }
-          if (b.x + b.r > W - 3) { b.x = W - 3 - b.r; b.vx = -Math.abs(b.vx); }
-          if (b.y - b.r < 0) { b.y = b.r; b.vy = Math.abs(b.vy); }
-          reflectOffBricks();
-          reflectOffPaddle();
-          if (b.y - b.r > H) { lost = true; break; }
-        }
-        if (lost) { // 바닥으로 떨어짐 → 번개 효과 종료
+      } else if (stepBall(b, dt)) {
+        if (G.extra.length > 0) {
+          G.ball = G.extra.shift();   // 남은 공이 있으면 그 공으로 계속
+        } else {                      // 모든 공이 떨어짐 → 생명 감소, 공 효과 종료
           G.fastBall = false;
+          G.fireUntil = 0;
           G.balls--;
           if (G.balls <= 0) { finishGame(false); return; }
           resetBall();
@@ -558,6 +607,74 @@
       ctx.stroke();
     }
 
+    // 보라색 공 3개 묶음 (멀티볼 아이템)
+    function drawMulti(cx, cy) {
+      [[0, -6], [-7, 5], [7, 5]].forEach(function(p) {
+        ctx.beginPath();
+        ctx.arc(cx + p[0], cy + p[1], 5.5, 0, Math.PI * 2);
+        ctx.fillStyle = ITEM_DEFS.multi.color;
+        ctx.fill();
+        ctx.strokeStyle = '#efe6ff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+    }
+
+    // 빨간 하트 (생명 +1 아이템)
+    function drawHeart(cx, cy) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + 10);
+      ctx.bezierCurveTo(cx - 16, cy, cx - 11, cy - 13, cx, cy - 5);
+      ctx.bezierCurveTo(cx + 11, cy - 13, cx + 16, cy, cx, cy + 10);
+      ctx.closePath();
+      ctx.fillStyle = ITEM_DEFS.life.color;
+      ctx.fill();
+      ctx.strokeStyle = '#ffd6de';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // 주황 불꽃 (불꽃공 아이템)
+    function drawFlame(cx, cy) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 14);
+      ctx.bezierCurveTo(cx + 4, cy - 6, cx + 11, cy - 2, cx + 10, cy + 4);
+      ctx.bezierCurveTo(cx + 9, cy + 10, cx + 4, cy + 13, cx, cy + 13);
+      ctx.bezierCurveTo(cx - 4, cy + 13, cx - 9, cy + 10, cx - 10, cy + 4);
+      ctx.bezierCurveTo(cx - 11, cy - 2, cx - 4, cy - 6, cx, cy - 14);
+      ctx.closePath();
+      ctx.fillStyle = ITEM_DEFS.fire.color;
+      ctx.fill();
+      ctx.strokeStyle = '#ffd8b0';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 3);
+      ctx.bezierCurveTo(cx + 3, cy + 1, cx + 5, cy + 4, cx + 4, cy + 8);
+      ctx.bezierCurveTo(cx + 3, cy + 11, cx - 3, cy + 11, cx - 4, cy + 8);
+      ctx.bezierCurveTo(cx - 5, cy + 4, cx - 3, cy + 1, cx, cy - 3);
+      ctx.closePath();
+      ctx.fillStyle = '#ffd23f';
+      ctx.fill();
+    }
+
+    var SHAPE_DRAWERS = {speed: drawBolt, multi: drawMulti, life: drawHeart, fire: drawFlame};
+
+    function drawBall(b) {
+      var fire = G.elapsed < G.fireUntil;
+      if (fire || G.fastBall) {   // 효과 중이면 빛나는 테두리
+        ctx.strokeStyle = fire ? 'rgba(255,122,26,0.5)' : 'rgba(79,163,255,0.45)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r + 4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = fire ? '#ff7a1a' : (G.fastBall ? '#4fa3ff' : '#9FE1CB');
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     function draw() {
       ctx.fillStyle = '#1b1b2b';
       ctx.fillRect(0, 0, W, H);
@@ -585,7 +702,7 @@
       // 낙하 아이템
       G.items.forEach(function(it) {
         var d = ITEM_DEFS[it.type];
-        if (it.type === 'speed') { drawBolt(it.x, it.y); return; }
+        if (SHAPE_DRAWERS[it.type]) { SHAPE_DRAWERS[it.type](it.x, it.y); return; }
         ctx.fillStyle = d.color;
         roundRect(it.x - 11, it.y - 8, 22, 16, 4);
         ctx.fill();
@@ -617,18 +734,8 @@
           ctx.fillRect(G.paddleX + G.paddleW / 2 - 8, pt - 6, 4, 6);
         }
 
-        // 공 (번개 효과 중에는 파란색 + 빛나는 테두리)
-        if (G.fastBall) {
-          ctx.strokeStyle = 'rgba(79,163,255,0.45)';
-          ctx.lineWidth = 4;
-          ctx.beginPath();
-          ctx.arc(G.ball.x, G.ball.y, G.ball.r + 4, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-        ctx.fillStyle = G.fastBall ? '#4fa3ff' : '#9FE1CB';
-        ctx.beginPath();
-        ctx.arc(G.ball.x, G.ball.y, G.ball.r, 0, Math.PI * 2);
-        ctx.fill();
+        // 공 (멀티볼이면 여러 개)
+        allBalls().forEach(drawBall);
 
         // 아이템 획득 문구
         G.floats.forEach(function(f) {
