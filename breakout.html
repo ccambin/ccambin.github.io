@@ -130,12 +130,11 @@
     ];
 
     // 아이템
-    var ITEM_DROP_CHANCE = 0.3;
+    var ITEM_DROP_CHANCE = 0.4;
     var ITEM_FALL = 140;
     var EXPAND_S = 8, SHRINK_S = 6, GUN_S = 8;
     var BULLET_SPEED = 520, FIRE_INTERVAL = 0.35;
     var FAST_MULT = 2;     // 번개 아이템: 공이 떨어질 때까지 2배 속도
-    var FIRE_S = 8;        // 불꽃공 지속 시간(초)
     var MAX_EXTRA = 8;     // 멀티볼로 추가되는 공의 최대 개수
     var MAX_LIVES = 9;
     var ITEM_DEFS = {
@@ -158,7 +157,7 @@
       speed: 380, saved: false, particles: [], stageTimer: null,
       items: [], bullets: [], floats: [],
       expandUntil: 0, shrinkUntil: 0, gunUntil: 0, fireTimer: 0,
-      fastBall: false, fireUntil: 0,
+      fastBall: false, fireBall: false,   // 번개·불꽃 효과: 공이 다 떨어질 때까지 유지
       extra: []   // 멀티볼로 생긴 추가 공들 (G.ball이 주 공)
     };
     window.G = G;
@@ -314,7 +313,7 @@
       G.gunUntil = 0;
       G.fireTimer = 0;
       G.fastBall = false;
-      G.fireUntil = 0;
+      G.fireBall = false;
       G.extra = [];
     }
 
@@ -410,7 +409,7 @@
       }
       else if (type === 'multi') spawnMultiball();
       else if (type === 'life') G.balls = Math.min(MAX_LIVES, G.balls + 1);
-      else if (type === 'fire') G.fireUntil = G.elapsed + FIRE_S;
+      else if (type === 'fire') G.fireBall = true;
       addFloat(ITEM_DEFS[type].text, G.paddleX, paddleTop() - 16);
     }
 
@@ -478,7 +477,7 @@
     }
 
     function reflectOffBricks(b) {
-      var fire = G.elapsed < G.fireUntil;
+      var fire = G.fireBall;
       for (var i = 0; i < G.bricks.length; i++) {
         var br = G.bricks[i];
         if (!br.alive) continue;
@@ -559,7 +558,7 @@
           G.ball = G.extra.shift();   // 남은 공이 있으면 그 공으로 계속
         } else {                      // 모든 공이 떨어짐 → 생명 감소, 공 효과 종료
           G.fastBall = false;
-          G.fireUntil = 0;
+          G.fireBall = false;
           G.balls--;
           if (G.balls <= 0) { finishGame(false); return; }
           resetBall();
@@ -661,7 +660,7 @@
     var SHAPE_DRAWERS = {speed: drawBolt, multi: drawMulti, life: drawHeart, fire: drawFlame};
 
     function drawBall(b) {
-      var fire = G.elapsed < G.fireUntil;
+      var fire = G.fireBall;
       if (fire || G.fastBall) {   // 효과 중이면 빛나는 테두리
         ctx.strokeStyle = fire ? 'rgba(255,122,26,0.5)' : 'rgba(79,163,255,0.45)';
         ctx.lineWidth = 4;
