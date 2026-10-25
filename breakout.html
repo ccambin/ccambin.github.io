@@ -67,7 +67,7 @@
     <div class="overlay" id="startOverlay">
       <div class="panel">
         <h1>🧱 벽돌깨기</h1>
-        <p class="sub">패들을 움직여 공으로 벽돌을 모두 깨세요!<br>10개 스테이지마다 새로운 배치가 나와요.<br>떨어지는 아이템: <span style="color:#2ecc71;">＋길어짐</span> <span style="color:#E24B4A;">－짧아짐</span> <span style="color:#F1C40F;">▲총</span></p>
+        <p class="sub">패들을 움직여 공으로 벽돌을 모두 깨세요!<br>10개 스테이지마다 새로운 배치가 나와요.<br>떨어지는 아이템: <span style="color:#2ecc71;">＋길어짐</span> <span style="color:#E24B4A;">－짧아짐</span> <span style="color:#F1C40F;">▲총</span> <span style="color:#4fa3ff;">⚡공 속도UP</span></p>
         <div class="pills" id="diffPills">
           <button class="pill" data-diff="easy">쉬움</button>
           <button class="pill active" data-diff="normal">보통</button>
@@ -134,12 +134,14 @@
     var ITEM_FALL = 140;
     var EXPAND_S = 8, SHRINK_S = 6, GUN_S = 8;
     var BULLET_SPEED = 520, FIRE_INTERVAL = 0.35;
+    var FAST_MULT = 1.5;   // 번개 아이템: 공이 떨어질 때까지 1.5배 속도
     var ITEM_DEFS = {
       expand: {color: '#2ecc71', label: '＋', text: '판 길어짐!'},
       shrink: {color: '#E24B4A', label: '－', text: '판 짧아짐!'},
-      gun:    {color: '#F1C40F', label: '▲', text: '총 발사!'}
+      gun:    {color: '#F1C40F', label: '▲', text: '총 발사!'},
+      speed:  {color: '#2f80ed', label: '', text: '공 속도 UP!'}
     };
-    var ITEM_KEYS = ['expand', 'shrink', 'gun'];
+    var ITEM_KEYS = ['expand', 'shrink', 'gun', 'speed'];
 
     var G = {
       state: 'start', diff: 'normal',
@@ -149,7 +151,8 @@
       ball: {x: 0, y: 0, vx: 0, vy: 0, r: 7, stuck: true},
       speed: 380, saved: false, particles: [], stageTimer: null,
       items: [], bullets: [], floats: [],
-      expandUntil: 0, shrinkUntil: 0, gunUntil: 0, fireTimer: 0
+      expandUntil: 0, shrinkUntil: 0, gunUntil: 0, fireTimer: 0,
+      fastBall: false
     };
     window.G = G;
 
@@ -255,12 +258,17 @@
       G.ball.vy = 0;
     }
 
+    // 현재 공 속도 (번개 아이템 효과 반영)
+    function ballSpeed() {
+      return G.speed * (G.fastBall ? FAST_MULT : 1);
+    }
+
     function launchBall() {
       if (!G.ball.stuck) return;
       G.ball.stuck = false;
       var angle = (-Math.PI / 2) + (Math.random() * 0.5 - 0.25); // 위쪽 ± 약간
-      G.ball.vx = Math.cos(angle) * G.speed;
-      G.ball.vy = Math.sin(angle) * G.speed;
+      G.ball.vx = Math.cos(angle) * ballSpeed();
+      G.ball.vy = Math.sin(angle) * ballSpeed();
     }
 
     function clearItemState() {
@@ -271,6 +279,7 @@
       G.shrinkUntil = 0;
       G.gunUntil = 0;
       G.fireTimer = 0;
+      G.fastBall = false;
     }
 
     function startGame() {
@@ -359,6 +368,12 @@
       if (type === 'expand') G.expandUntil = G.elapsed + EXPAND_S;
       else if (type === 'shrink') G.shrinkUntil = G.elapsed + SHRINK_S;
       else if (type === 'gun') { G.gunUntil = G.elapsed + GUN_S; G.fireTimer = 0; }
+      else if (type === 'speed' && !G.fastBall) {
+        G.fastBall = true;
+        // 이미 날아가는 공도 즉시 빨라지도록 속도 재설정
+        var b = G.ball, v = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+        if (!b.stuck && v > 0) { b.vx = b.vx / v * ballSpeed(); b.vy = b.vy / v * ballSpeed(); }
+      }
       addFloat(ITEM_DEFS[type].text, G.paddleX, paddleTop() - 16);
     }
 
@@ -420,8 +435,8 @@
         var offset = (b.x - G.paddleX) / half;
         offset = Math.max(-1, Math.min(1, offset));
         var angle = (-Math.PI / 2) + offset * (Math.PI / 3); // 최대 ±60도
-        b.vx = Math.cos(angle) * G.speed;
-        b.vy = Math.sin(angle) * G.speed;
+        b.vx = Math.cos(angle) * ballSpeed();
+        b.vy = Math.sin(angle) * ballSpeed();
         b.y = paddleTop() - b.r - 1;
       }
     }
@@ -494,7 +509,8 @@
           reflectOffPaddle();
           if (b.y - b.r > H) { lost = true; break; }
         }
-        if (lost) { // 바닥으로 떨어짐
+        if (lost) { // 바닥으로 떨어짐 → 번개 효과 종료
+          G.fastBall = false;
           G.balls--;
           if (G.balls <= 0) { finishGame(false); return; }
           resetBall();
@@ -526,6 +542,22 @@
       ctx.closePath();
     }
 
+    // 파란 번개 모양 (번개 아이템)
+    var BOLT = [[3, -12], [-7, 2], [-1, 2], [-4, 12], [8, -3], [2, -3], [6, -12]];
+    function drawBolt(cx, cy) {
+      var s = 1.3;
+      ctx.beginPath();
+      BOLT.forEach(function(p, i) {
+        if (i === 0) ctx.moveTo(cx + p[0] * s, cy + p[1] * s); else ctx.lineTo(cx + p[0] * s, cy + p[1] * s);
+      });
+      ctx.closePath();
+      ctx.fillStyle = ITEM_DEFS.speed.color;
+      ctx.fill();
+      ctx.strokeStyle = '#cfe3ff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
     function draw() {
       ctx.fillStyle = '#1b1b2b';
       ctx.fillRect(0, 0, W, H);
@@ -553,6 +585,7 @@
       // 낙하 아이템
       G.items.forEach(function(it) {
         var d = ITEM_DEFS[it.type];
+        if (it.type === 'speed') { drawBolt(it.x, it.y); return; }
         ctx.fillStyle = d.color;
         roundRect(it.x - 11, it.y - 8, 22, 16, 4);
         ctx.fill();
@@ -584,8 +617,15 @@
           ctx.fillRect(G.paddleX + G.paddleW / 2 - 8, pt - 6, 4, 6);
         }
 
-        // 공
-        ctx.fillStyle = '#9FE1CB';
+        // 공 (번개 효과 중에는 파란색 + 빛나는 테두리)
+        if (G.fastBall) {
+          ctx.strokeStyle = 'rgba(79,163,255,0.45)';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(G.ball.x, G.ball.y, G.ball.r + 4, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.fillStyle = G.fastBall ? '#4fa3ff' : '#9FE1CB';
         ctx.beginPath();
         ctx.arc(G.ball.x, G.ball.y, G.ball.r, 0, Math.PI * 2);
         ctx.fill();
